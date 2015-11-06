@@ -83,7 +83,7 @@ public class Catalog extends AbstractMojo {
         } catch (XMLStreamException | IOException ex) {
             getLog().warn(ex.getMessage(),ex);
         }
-        getLog().warn(catalog.toString());
+        getLog().debug(catalog.toString());
     }
     
     private void processJarFile(String jarFileName, CatalogModel catalog) throws IOException {
