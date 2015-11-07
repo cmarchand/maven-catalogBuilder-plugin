@@ -17,7 +17,6 @@ package com.oxiane.xml;
  */
 import com.oxiane.xml.model.CatalogModel;
 import com.oxiane.xml.model.RewriteSystemModel;
-import com.sun.xml.internal.txw2.output.IndentingXMLStreamWriter;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 
@@ -29,6 +28,7 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import javanet.staxutils.IndentingXMLStreamWriter;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
