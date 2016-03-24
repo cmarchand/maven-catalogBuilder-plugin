@@ -23,6 +23,7 @@ import org.apache.maven.plugin.MojoExecutionException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.List;
@@ -112,7 +113,7 @@ public class Catalog extends AbstractMojo {
         XMLOutputFactory fact = XMLOutputFactory.newFactory();
         File catalogFile = new File(catalogFileName);
         try (FileOutputStream fos = new FileOutputStream(catalogFile)) {
-            XMLStreamWriter writer = fact.createXMLStreamWriter(fos);
+            XMLStreamWriter writer = fact.createXMLStreamWriter(fos,"UTF-8");
             writer = new IndentingXMLStreamWriter(writer);
             writer.writeStartDocument("UTF-8", "1.0");
             writer.writeDTD("<!DOCTYPE catalog PUBLIC \"-//OASIS//DTD Entity Resolution XML Catalog V1.0//EN\" \"http://www.oasis-open.org/committees/entity/release/1.0/catalog.dtd\">");
