@@ -60,11 +60,17 @@ public class Catalog extends AbstractMojo {
     @Parameter( defaultValue = "jar")
     private String archiveExtensions;
     
+    @Parameter()
+    private String rewriteToProtocol;
+    
     private String[] extensions = null;
 
 
     @Override
     public void execute() throws MojoExecutionException {
+        if(rewriteToProtocol!=null && rewriteToProtocol.length()>0) {
+            if(!rewriteToProtocol.endsWith(":")) rewriteToProtocol+=":";
+        }
         CatalogModel catalog = new CatalogModel();
         for(String s: classpathElements) {
             getLog().debug(LOG_PREFIX+s);
@@ -102,8 +108,13 @@ public class Catalog extends AbstractMojo {
                     String groupId = middle.substring(0, pos);
                     String artifactId = middle.substring(pos+1);
                     getLog().debug(LOG_PREFIX+"groupId="+groupId+" artifactId="+artifactId);
-                    RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", "jar:file:"+jarFileName+"!");
-                    catalog.getEntries().add(rsm);
+                    if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
+                        RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", rewriteToProtocol);
+                        catalog.getEntries().add(rsm);
+                    } else {
+                        RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", "jar:file:"+jarFileName+"!");
+                        catalog.getEntries().add(rsm);
+                    }
                     break;
                 }
             }
@@ -112,6 +123,8 @@ public class Catalog extends AbstractMojo {
     private void writeCatalog(CatalogModel catalog) throws FileNotFoundException, XMLStreamException, IOException {
         XMLOutputFactory fact = XMLOutputFactory.newFactory();
         File catalogFile = new File(catalogFileName);
+        // the directory must exist
+        catalogFile.getAbsoluteFile().getParentFile().mkdirs();
         try (FileOutputStream fos = new FileOutputStream(catalogFile)) {
             XMLStreamWriter writer = fact.createXMLStreamWriter(fos,"UTF-8");
             writer = new IndentingXMLStreamWriter(writer);
