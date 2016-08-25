@@ -23,7 +23,6 @@ import org.apache.maven.plugin.MojoExecutionException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.List;
@@ -112,6 +111,10 @@ public class Catalog extends AbstractMojo {
     private void writeCatalog(CatalogModel catalog) throws FileNotFoundException, XMLStreamException, IOException {
         XMLOutputFactory fact = XMLOutputFactory.newFactory();
         File catalogFile = new File(catalogFileName);
+        File directory = catalogFile.getParentFile();
+        if(!directory.exists()) {
+            directory.mkdirs();
+        }
         try (FileOutputStream fos = new FileOutputStream(catalogFile)) {
             XMLStreamWriter writer = fact.createXMLStreamWriter(fos,"UTF-8");
             writer = new IndentingXMLStreamWriter(writer);
