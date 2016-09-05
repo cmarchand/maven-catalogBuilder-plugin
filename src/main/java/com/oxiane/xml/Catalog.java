@@ -24,18 +24,27 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Enumeration;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import javanet.staxutils.IndentingXMLStreamWriter;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
+import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
+import org.apache.maven.artifact.versioning.OverConstrainedVersionException;
+import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
+import org.apache.maven.shared.dependency.graph.DependencyNode;
+import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
 
 /**
  * Goal which touches a timestamp file.
@@ -50,67 +59,92 @@ import org.apache.maven.plugins.annotations.ResolutionScope;
         requiresDependencyResolution = ResolutionScope.COMPILE)
 public class Catalog extends AbstractMojo {
     
-    @Parameter( defaultValue = "${project.compileClasspathElements}", readonly = true, required = true )
-    private List<String> classpathElements;
+    @Parameter( defaultValue = "${project}", readonly = true, required = true )
+    private MavenProject project;
     
     @Parameter( defaultValue = "catalog.xml")
     private String catalogFileName;
     
-    @Parameter( defaultValue = "jar")
-    private String archiveExtensions;
+    @Parameter()
+    private String rewriteToProtocol;
     
-    private String[] extensions = null;
-
-
+    @Component( hint = "default" )
+    private DependencyGraphBuilder dependencyGraphBuilder;
+    
+    private DependencyNode rootNode;
+    
     @Override
     public void execute() throws MojoExecutionException {
-        CatalogModel catalog = new CatalogModel();
-        for(String s: classpathElements) {
-            getLog().debug(LOG_PREFIX+s);
-            if(isArchive(s)) {
-                try {
-                    processJarFile(s, catalog);
-                } catch (IOException ex) {
-                    getLog().error(ex.getMessage());
-                    if(getLog().isWarnEnabled()) {
-                        getLog().warn(ex);
-                    }
-                }
-            }
-        }
+        final List<String> classpaths;
         try {
-            writeCatalog(catalog);
-        } catch (XMLStreamException | IOException ex) {
-            getLog().warn(ex.getMessage(),ex);
+            classpaths = new ArrayList<>(project.getCompileClasspathElements().size());
+            for(Object i:project.getCompileClasspathElements()) {
+                classpaths.add(i.toString());
+            }
+            if(rewriteToProtocol!=null && rewriteToProtocol.length()>0) {
+                if(!rewriteToProtocol.endsWith(":")) rewriteToProtocol+=":";
+            }
+            try {
+                rootNode = dependencyGraphBuilder.buildDependencyGraph( project, buildArtifactFilter() );
+                final CatalogModel catalog = new CatalogModel();
+                DependencyNodeVisitor visitor = new DependencyNodeVisitor() {
+                    @Override
+                    public boolean visit(DependencyNode dn) {
+                        getLog().debug(LOG_PREFIX+"Visiting "+dn.toNodeString());
+                        if(!dn.getArtifact().equals(project.getArtifact())) {
+                            processDependency(dn, classpaths, catalog);
+                        }
+                        return true;
+                    }
+                    @Override
+                    public boolean endVisit(DependencyNode dn) {
+                        return true;
+                    }
+                };
+                rootNode.accept(visitor);
+                writeCatalog(catalog);
+                getLog().debug(LOG_PREFIX+catalog.toString());
+            } catch (XMLStreamException | IOException | DependencyGraphBuilderException ex) {
+                getLog().error(LOG_PREFIX+ex.getMessage(),ex);
+            }
+        } catch(DependencyResolutionRequiredException ex) {
+            getLog().error(LOG_PREFIX+ex.getMessage(),ex);
         }
-        getLog().debug(catalog.toString());
     }
     
-    private void processJarFile(String jarFileName, CatalogModel catalog) throws IOException {
-        File jarFile = new File(jarFileName);
-        if(!jarFile.exists()) {
-            getLog().warn(LOG_PREFIX+jarFileName+" does not exists");
-            return;
-        }
-        try (ZipFile zipFile = new ZipFile(jarFile)) {
-            for(Enumeration<? extends ZipEntry> enumer=zipFile.entries();enumer.hasMoreElements();) {
-                ZipEntry ze = enumer.nextElement();
-                if(ze.getName().endsWith("pom.xml")) {
-                    String middle = ze.getName().substring(15, ze.getName().length()-8);
-                    int pos = middle.indexOf("/");
-                    String groupId = middle.substring(0, pos);
-                    String artifactId = middle.substring(pos+1);
-                    getLog().debug(LOG_PREFIX+"groupId="+groupId+" artifactId="+artifactId);
-                    RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", "jar:file:"+jarFileName+"!");
-                    catalog.getEntries().add(rsm);
-                    break;
+    private void processDependency(DependencyNode dn, List<String> classpaths, CatalogModel catalog) {
+        String artifactId = dn.getArtifact().getArtifactId();
+        if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
+            RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", rewriteToProtocol);
+            catalog.getEntries().add(rsm);
+        } else {
+            try {
+                String jarFileName = null;
+                if(isInJarWithDependencies(dn)) {
+                    getLog().debug(LOG_PREFIX+artifactId+" is in a jar-with-dependencies");
+                    jarFileName = getJarFileForJarWithDependency(dn, classpaths);
+                } else {
+                    getLog().debug(LOG_PREFIX+artifactId+" is in a jar");
+                    String artifactPath = constructArtifactPath(dn.getArtifact());
+                    getLog().debug(LOG_PREFIX+"artifactPath= "+artifactPath);
+                    for(String s:classpaths) {
+                        if(s.contains(artifactPath)) {
+                            jarFileName = s;
+                        }
+                    }
                 }
+                getLog().debug(LOG_PREFIX+artifactId+" -> "+jarFileName);
+                RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", "jar:file:"+jarFileName+"!");
+                catalog.getEntries().add(rsm);
+            } catch (OverConstrainedVersionException ex) {
+                getLog().error(LOG_PREFIX+ex.getMessage(), ex);
             }
         }
     }
+    
     private void writeCatalog(CatalogModel catalog) throws FileNotFoundException, XMLStreamException, IOException {
         XMLOutputFactory fact = XMLOutputFactory.newFactory();
-        File catalogFile = new File(catalogFileName);
+        File catalogFile = new File(project.getBasedir(), catalogFileName);
         File directory = catalogFile.getParentFile();
         if(!directory.exists()) {
             directory.mkdirs();
@@ -134,19 +168,65 @@ public class Catalog extends AbstractMojo {
             fos.flush();
         }
     }
-    private boolean isArchive(String archiveName) {
-        if(extensions==null) {
-            extensions = archiveExtensions.toUpperCase().split(",");
-        }
-        String an = archiveName.toUpperCase();
-        boolean isArchive = false;
-        int count=0;
-        while(!isArchive && count<extensions.length) {
-            isArchive = an.endsWith(extensions[count]);
-            count++;
-        }
-        return isArchive;
+    private ArtifactFilter buildArtifactFilter() {
+        return new ArtifactFilter() {
+            @Override
+            public boolean include(Artifact artfct) {
+                return true;
+            }
+        };
     }
     private static final transient String LOG_PREFIX = "[catalog] ";
     private static final transient String CATALOG_NS = "urn:oasis:names:tc:entity:xmlns:xml:catalog";
+    /**
+     * Return true if the dependency or one of its ancestor has a classifier in {@link #ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS}.
+     * @param dn The dependency to check
+     * @return true or false...
+     */
+    private boolean isInJarWithDependencies(DependencyNode dn) {
+        getLog().debug(LOG_PREFIX+" looking for parentry of "+dn.getArtifact().toString());
+        String classifier = dn.getArtifact().getClassifier();
+        getLog().debug(LOG_PREFIX+"classifier="+classifier);
+        // classifier==null || 
+        if( classifier!=null && Arrays.binarySearch(ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS, classifier)>=0) {
+            getLog().debug(LOG_PREFIX+" return true");
+            return true;
+        }
+        if(dn.getParent()==null) {
+            getLog().debug(LOG_PREFIX+"no parent, return false");
+            return false;
+        }
+        return isInJarWithDependencies(dn.getParent());
+    }
+    private String getJarFileForJarWithDependency(DependencyNode dn, List<String> classpthElements) throws OverConstrainedVersionException {
+        if(dn==null) return null;
+        String classifier = dn.getArtifact().getClassifier();
+        if(classifier==null || Arrays.binarySearch(ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS, classifier)>=0) {
+            String artifactPath = constructArtifactPath(dn.getArtifact());
+            for(String s:classpthElements) {
+                if(s.contains(artifactPath)) {
+                    return s;
+                }
+            }
+            return null;
+        } else {
+            return getJarFileForJarWithDependency(dn.getParent(), classpthElements);
+        }
+    }
+    
+    private final static String[] ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS = new String[] {
+        "jar-with-dependencies",
+        "jar-with-dependencies-and-model"
+    };
+    private String constructArtifactPath(Artifact art) throws OverConstrainedVersionException {
+        String groups[] = art.getGroupId().split("\\.");
+        getLog().debug(LOG_PREFIX+"groups="+Arrays.toString(groups));
+        String artifacts[] = art.getArtifactId().split("\\.");
+        getLog().debug(LOG_PREFIX+"artifacs="+Arrays.toString(artifacts));
+        String[] elements = new String[groups.length + artifacts.length + 1];
+        System.arraycopy(groups, 0, elements, 0, groups.length);
+        System.arraycopy(artifacts, 0, elements, groups.length, artifacts.length);
+        elements[elements.length-1] = art.getSelectedVersion().toString();
+        return String.join("/", elements);
+    }
 }
