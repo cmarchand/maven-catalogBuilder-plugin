@@ -227,6 +227,6 @@ public class Catalog extends AbstractMojo {
         System.arraycopy(groups, 0, elements, 0, groups.length);
         System.arraycopy(artifacts, 0, elements, groups.length, artifacts.length);
         elements[elements.length-1] = art.getSelectedVersion().toString();
-        return String.join("/", elements);
+        return String.join(File.pathSeparator, elements);
     }
 }
