@@ -228,8 +228,11 @@ public class Catalog extends AbstractMojo {
         String[] elements = new String[groups.length + artifacts.length + 1];
         System.arraycopy(groups, 0, elements, 0, groups.length);
         System.arraycopy(artifacts, 0, elements, groups.length, artifacts.length);
+        getLog().debug(LOG_PREFIX+"artifact.version="+art.getVersion());
+        getLog().debug(LOG_PREFIX+"artifact.selectedVersion="+art.getSelectedVersion());
+        getLog().debug(LOG_PREFIX+"artifact.baseVersion="+art.getBaseVersion());
         // elements[elements.length-1] = art.getSelectedVersion().toString();
-        elements[elements.length-1] = art.getVersion();
+        elements[elements.length-1] = art.getBaseVersion();
         return Joiner.on(File.separator).skipNulls().join(elements);
     }
 }
