@@ -45,6 +45,7 @@ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
 import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
 import org.apache.maven.shared.dependency.graph.DependencyNode;
 import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
+import com.google.common.base.Joiner;
 
 /**
  * Goal which touches a timestamp file.
@@ -81,6 +82,7 @@ public class Catalog extends AbstractMojo {
             for(Object i:project.getCompileClasspathElements()) {
                 classpaths.add(i.toString());
             }
+            getLog().debug(LOG_PREFIX+"classpaths="+classpaths);
             if(rewriteToProtocol!=null && rewriteToProtocol.length()>0) {
                 if(!rewriteToProtocol.endsWith(":")) rewriteToProtocol+=":";
             }
@@ -226,7 +228,8 @@ public class Catalog extends AbstractMojo {
         String[] elements = new String[groups.length + artifacts.length + 1];
         System.arraycopy(groups, 0, elements, 0, groups.length);
         System.arraycopy(artifacts, 0, elements, groups.length, artifacts.length);
-        elements[elements.length-1] = art.getSelectedVersion().toString();
-        return String.join(File.pathSeparator, elements);
+        // elements[elements.length-1] = art.getSelectedVersion().toString();
+        elements[elements.length-1] = art.getVersion();
+        return Joiner.on(File.separator).skipNulls().join(elements);
     }
 }
