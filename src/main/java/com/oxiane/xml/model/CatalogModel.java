@@ -31,6 +31,12 @@ public class CatalogModel implements Serializable {
         return "CatalogModel{" + "entries=\n" + entries + '}';
     }
     
+    public boolean containsUriStartPrefix(final String prefix) {
+        for(RewriteSystemModel rsm:entries) {
+            if(rsm.getUriStartPrefix().equals(prefix)) return true;
+        }
+        return false;
+    }
     
     
 }

@@ -118,7 +118,9 @@ public class Catalog extends AbstractMojo {
         String artifactId = dn.getArtifact().getArtifactId();
         if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
             RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", rewriteToProtocol);
-            catalog.getEntries().add(rsm);
+            if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
+                catalog.getEntries().add(rsm);
+            }
         } else {
             try {
                 String jarFileName = null;
@@ -137,7 +139,9 @@ public class Catalog extends AbstractMojo {
                 }
                 getLog().debug(LOG_PREFIX+artifactId+" -> "+jarFileName);
                 RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", "jar:file:"+jarFileName+"!");
-                catalog.getEntries().add(rsm);
+                if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
+                    catalog.getEntries().add(rsm);
+                }
             } catch (OverConstrainedVersionException ex) {
                 getLog().error(LOG_PREFIX+ex.getMessage(), ex);
             }
@@ -200,20 +204,24 @@ public class Catalog extends AbstractMojo {
         }
         return isInJarWithDependencies(dn.getParent());
     }
-    private String getJarFileForJarWithDependency(DependencyNode dn, List<String> classpthElements) throws OverConstrainedVersionException {
+    private String getJarFileForJarWithDependency(final DependencyNode dn, List<String> classpthElements) throws OverConstrainedVersionException {
         if(dn==null) return null;
-        String classifier = dn.getArtifact().getClassifier();
-        if(classifier==null || Arrays.binarySearch(ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS, classifier)>=0) {
-            String artifactPath = constructArtifactPath(dn.getArtifact());
-            for(String s:classpthElements) {
-                if(s.contains(artifactPath)) {
-                    return s;
+        String lastFound = null;
+        DependencyNode currentDn = dn;
+        while(currentDn!=null) {
+            String classifier = currentDn.getArtifact().getClassifier();
+            if(classifier==null || Arrays.binarySearch(ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS, classifier)>=0) {
+                String artifactPath = constructArtifactPath(currentDn.getArtifact());
+                for(String s:classpthElements) {
+                    if(s.contains(artifactPath)) {
+                        lastFound=s;
+                        break;
+                    }
                 }
             }
-            return null;
-        } else {
-            return getJarFileForJarWithDependency(dn.getParent(), classpthElements);
+            currentDn = currentDn.getParent();
         }
+        return lastFound;
     }
     
     private final static String[] ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS = new String[] {
@@ -228,10 +236,7 @@ public class Catalog extends AbstractMojo {
         String[] elements = new String[groups.length + artifacts.length + 1];
         System.arraycopy(groups, 0, elements, 0, groups.length);
         System.arraycopy(artifacts, 0, elements, groups.length, artifacts.length);
-        getLog().debug(LOG_PREFIX+"artifact.version="+art.getVersion());
-        getLog().debug(LOG_PREFIX+"artifact.selectedVersion="+art.getSelectedVersion());
         getLog().debug(LOG_PREFIX+"artifact.baseVersion="+art.getBaseVersion());
-        // elements[elements.length-1] = art.getSelectedVersion().toString();
         elements[elements.length-1] = art.getBaseVersion();
         return Joiner.on(File.separator).skipNulls().join(elements);
     }
