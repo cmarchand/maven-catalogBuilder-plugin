@@ -168,6 +168,10 @@ public class Catalog extends AbstractMojo {
                 writer.writeAttribute("uriStartString", rsm.getUriStartPrefix());
                 writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
                 writer.writeEndElement();
+                writer.writeStartElement(CATALOG_NS, "rewriteSystem");
+                writer.writeAttribute("systemIdStartString", rsm.getUriStartPrefix());
+                writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
+                writer.writeEndElement();
             }
             writer.writeEndElement();
             writer.writeEndDocument();
