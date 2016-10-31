@@ -46,6 +46,7 @@ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
 import org.apache.maven.shared.dependency.graph.DependencyNode;
 import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
 import com.google.common.base.Joiner;
+import javax.xml.XMLConstants;
 
 /**
  * Goal which touches a timestamp file.
@@ -163,6 +164,11 @@ public class Catalog extends AbstractMojo {
             writer.setDefaultNamespace("urn:oasis:names:tc:entity:xmlns:xml:catalog");
             writer.writeStartElement(CATALOG_NS, "catalog");
             writer.writeAttribute("xmlns", CATALOG_NS);
+            if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
+                writer.writeStartElement(CATALOG_NS, "group");
+                writer.writeAttribute(XMLConstants.XML_NS_PREFIX, XMLConstants.XML_NS_URI, "base", "file:/home/fakeuser");
+                writer.writeComment("\n\t\tBe aware of xml:base attribute.\n\t\tIf you must reference other catalogs, define them outside of this group, or use your own group, as :\n\t\t\t\t<group xml:base=\"...\">\n\t\t\t\t\t<next-catalog.../>\n\t\t\t\t</group> \n");
+            }
             for(RewriteSystemModel rsm:catalog.getEntries()) {
                 writer.writeStartElement(CATALOG_NS, "rewriteURI");
                 writer.writeAttribute("uriStartString", rsm.getUriStartPrefix());
@@ -171,6 +177,9 @@ public class Catalog extends AbstractMojo {
                 writer.writeStartElement(CATALOG_NS, "rewriteSystem");
                 writer.writeAttribute("systemIdStartString", rsm.getUriStartPrefix());
                 writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
+                writer.writeEndElement();
+            }
+            if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
                 writer.writeEndElement();
             }
             writer.writeEndElement();
