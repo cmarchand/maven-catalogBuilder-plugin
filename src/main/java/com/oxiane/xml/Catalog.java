@@ -77,8 +77,8 @@ public class Catalog extends AbstractMojo {
     
     @Override
     public void execute() throws MojoExecutionException {
-        if(rewriteToProtocol!=null && !rewriteToProtocol.endsWith("/")) {
-            rewriteToProtocol=rewriteToProtocol.concat("/");
+        if(rewriteToProtocol!=null && !rewriteToProtocol.endsWith(":/")) {
+            rewriteToProtocol=rewriteToProtocol.concat(":/");
         }
         
         final List<String> classpaths;
@@ -88,9 +88,6 @@ public class Catalog extends AbstractMojo {
                 classpaths.add(i.toString());
             }
             getLog().debug(LOG_PREFIX+"classpaths="+classpaths);
-            if(rewriteToProtocol!=null && rewriteToProtocol.length()>0) {
-                if(!rewriteToProtocol.endsWith(":")) rewriteToProtocol+=":";
-            }
             try {
                 rootNode = dependencyGraphBuilder.buildDependencyGraph( project, buildArtifactFilter() );
                 final CatalogModel catalog = new CatalogModel();
