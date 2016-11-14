@@ -77,6 +77,10 @@ public class Catalog extends AbstractMojo {
     
     @Override
     public void execute() throws MojoExecutionException {
+        if(rewriteToProtocol!=null && !rewriteToProtocol.endsWith("/")) {
+            rewriteToProtocol=rewriteToProtocol.concat("/");
+        }
+        
         final List<String> classpaths;
         try {
             classpaths = new ArrayList<>(project.getCompileClasspathElements().size());
@@ -118,7 +122,7 @@ public class Catalog extends AbstractMojo {
     private void processDependency(DependencyNode dn, List<String> classpaths, CatalogModel catalog) {
         String artifactId = dn.getArtifact().getArtifactId();
         if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
-            RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", rewriteToProtocol);
+            RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":/", rewriteToProtocol);
             if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
                 catalog.getEntries().add(rsm);
             }
@@ -139,7 +143,7 @@ public class Catalog extends AbstractMojo {
                     }
                 }
                 getLog().debug(LOG_PREFIX+artifactId+" -> "+jarFileName);
-                RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":", "jar:file:"+jarFileName+"!");
+                RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":/", "jar:file:"+jarFileName+"!/");
                 if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
                     catalog.getEntries().add(rsm);
                 }
@@ -164,11 +168,11 @@ public class Catalog extends AbstractMojo {
             writer.setDefaultNamespace("urn:oasis:names:tc:entity:xmlns:xml:catalog");
             writer.writeStartElement(CATALOG_NS, "catalog");
             writer.writeAttribute("xmlns", CATALOG_NS);
-            if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
-                writer.writeStartElement(CATALOG_NS, "group");
-                writer.writeAttribute(XMLConstants.XML_NS_PREFIX, XMLConstants.XML_NS_URI, "base", "file:/home/fakeuser");
-                writer.writeComment("\n\t\tBe aware of xml:base attribute.\n\t\tIf you must reference other catalogs, define them outside of this group, or use your own group, as :\n\t\t\t\t<group xml:base=\"...\">\n\t\t\t\t\t<next-catalog.../>\n\t\t\t\t</group> \n");
-            }
+//            if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
+//                writer.writeStartElement(CATALOG_NS, "group");
+//                writer.writeAttribute(XMLConstants.XML_NS_PREFIX, XMLConstants.XML_NS_URI, "base", "file:/home/fakeuser");
+//                writer.writeComment("\n\t\tBe aware of xml:base attribute.\n\t\tIf you must reference other catalogs, define them outside of this group, or use your own group, as :\n\t\t\t\t<group xml:base=\"...\">\n\t\t\t\t\t<next-catalog.../>\n\t\t\t\t</group> \n");
+//            }
             for(RewriteSystemModel rsm:catalog.getEntries()) {
                 writer.writeStartElement(CATALOG_NS, "rewriteURI");
                 writer.writeAttribute("uriStartString", rsm.getUriStartPrefix());
@@ -179,9 +183,9 @@ public class Catalog extends AbstractMojo {
                 writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
                 writer.writeEndElement();
             }
-            if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
-                writer.writeEndElement();
-            }
+//            if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
+//                writer.writeEndElement();
+//            }
             writer.writeEndElement();
             writer.writeEndDocument();
             fos.flush();
