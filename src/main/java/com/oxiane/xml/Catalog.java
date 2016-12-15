@@ -46,7 +46,6 @@ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
 import org.apache.maven.shared.dependency.graph.DependencyNode;
 import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
 import com.google.common.base.Joiner;
-import javax.xml.XMLConstants;
 
 /**
  * Goal which touches a timestamp file.
@@ -118,8 +117,9 @@ public class Catalog extends AbstractMojo {
     
     private void processDependency(DependencyNode dn, List<String> classpaths, CatalogModel catalog) {
         String artifactId = dn.getArtifact().getArtifactId();
+        String groupId = dn.getArtifact().getGroupId();
         if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
-            RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":/", rewriteToProtocol);
+            RewriteSystemModel rsm = new RewriteSystemModel(groupId+":"+artifactId+":/", rewriteToProtocol);
             if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
                 catalog.getEntries().add(rsm);
             }
@@ -140,7 +140,7 @@ public class Catalog extends AbstractMojo {
                     }
                 }
                 getLog().debug(LOG_PREFIX+artifactId+" -> "+jarFileName);
-                RewriteSystemModel rsm = new RewriteSystemModel(artifactId+":/", "jar:file:"+jarFileName+"!/");
+                RewriteSystemModel rsm = new RewriteSystemModel(groupId+":"+artifactId+":/", "jar:file:"+jarFileName+"!/");
                 if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
                     catalog.getEntries().add(rsm);
                 }
@@ -246,7 +246,7 @@ public class Catalog extends AbstractMojo {
         String groups[] = art.getGroupId().split("\\.");
         getLog().debug(LOG_PREFIX+"groups="+Arrays.toString(groups));
         String artifacts[] = art.getArtifactId().split("\\.");
-        getLog().debug(LOG_PREFIX+"artifacs="+Arrays.toString(artifacts));
+        getLog().debug(LOG_PREFIX+"artifacts="+Arrays.toString(artifacts));
         String[] elements = new String[groups.length + artifacts.length + 1];
         System.arraycopy(groups, 0, elements, 0, groups.length);
         System.arraycopy(artifacts, 0, elements, groups.length, artifacts.length);

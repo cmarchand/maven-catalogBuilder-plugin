@@ -2,12 +2,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.oxiane.xml</groupId>
+    <groupId>top.marchand.xml.maven</groupId>
     <artifactId>catalogBuilder-maven-plugin</artifactId>
-    <version>1.0.2-SNAPSHOT</version>
+    <version>1.0.2</version>
     <packaging>maven-plugin</packaging>
 
-    <name>maven-catalogBuilder-plugin Maven Mojo</name>
+    <name>catalogBuilder-maven-plugin Maven Mojo</name>
     <url>http://maven.apache.org</url>
     <description>This plugin generates a OASIS catalog, which redirects all &lt;artifactId&gt;: URLs to appropriate jar</description>
 
