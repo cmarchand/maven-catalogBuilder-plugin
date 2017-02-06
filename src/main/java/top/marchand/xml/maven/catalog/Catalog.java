@@ -1,5 +1,3 @@
-package com.oxiane.xml;
-
 /*
  * Copyright 2001-2005 The Apache Software Foundation.
  *
@@ -15,8 +13,10 @@ package com.oxiane.xml;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import com.oxiane.xml.model.CatalogModel;
-import com.oxiane.xml.model.RewriteSystemModel;
+package top.marchand.xml.maven.catalog;
+
+import top.marchand.xml.maven.catalog.model.CatalogModel;
+import top.marchand.xml.maven.catalog.model.RewriteSystemModel;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 
@@ -48,11 +48,7 @@ import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
 import com.google.common.base.Joiner;
 
 /**
- * Goal which touches a timestamp file.
- *
- * @goal touch
- *
- * @phase process-sources
+ * Generates a catalog, based on dependency tree, where each dependency is re-written to the jar URL.
  */
 @Mojo(
         name = "catalog", 
@@ -66,6 +62,9 @@ public class Catalog extends AbstractMojo {
     @Parameter( defaultValue = "catalog.xml")
     private String catalogFileName;
     
+    @Parameter (defaultValue = "artifactId:")
+    private String patternUrl;
+    
     @Parameter()
     private String rewriteToProtocol;
     
@@ -78,6 +77,9 @@ public class Catalog extends AbstractMojo {
     public void execute() throws MojoExecutionException {
         if(rewriteToProtocol!=null && !rewriteToProtocol.endsWith(":/")) {
             rewriteToProtocol=rewriteToProtocol.concat(":/");
+        }
+        if(!patternUrl.endsWith(":/")) {
+            throw new MojoExecutionException("Illegal patternUrl value. patternUrl must end with :/");
         }
         
         final List<String> classpaths;
@@ -118,8 +120,9 @@ public class Catalog extends AbstractMojo {
     private void processDependency(DependencyNode dn, List<String> classpaths, CatalogModel catalog) {
         String artifactId = dn.getArtifact().getArtifactId();
         String groupId = dn.getArtifact().getGroupId();
+        String version = dn.getArtifact().getVersion();
         if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
-            RewriteSystemModel rsm = new RewriteSystemModel(groupId+":"+artifactId+":/", rewriteToProtocol);
+            RewriteSystemModel rsm = new RewriteSystemModel(buildPattern(groupId,artifactId,version), rewriteToProtocol);
             if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
                 catalog.getEntries().add(rsm);
             }
@@ -140,7 +143,7 @@ public class Catalog extends AbstractMojo {
                     }
                 }
                 getLog().debug(LOG_PREFIX+artifactId+" -> "+jarFileName);
-                RewriteSystemModel rsm = new RewriteSystemModel(groupId+":"+artifactId+":/", "jar:file:"+jarFileName+"!/");
+                RewriteSystemModel rsm = new RewriteSystemModel(buildPattern(groupId,artifactId,version), "jar:file:"+jarFileName+"!/");
                 if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
                     catalog.getEntries().add(rsm);
                 }
@@ -148,6 +151,26 @@ public class Catalog extends AbstractMojo {
                 getLog().error(LOG_PREFIX+ex.getMessage(), ex);
             }
         }
+    }
+    
+    String buildPattern(final String groupId, final String artifactId, final String version) {
+        StringBuilder sb = new StringBuilder();
+        for(int i=0; i<patternUrl.length(); i++) {
+            String s = patternUrl.substring(i);
+            if(s.startsWith("groupId")) {
+                sb.append(groupId);
+                i+=("groupId".length()-1);
+            } else if(s.startsWith("artifactId")) {
+                sb.append(artifactId);
+                i+=("artifactId".length()-1);
+            } else if(s.startsWith("version")) {
+                sb.append(version);
+                i+=("version".length()-1);
+            } else {
+                sb.append(s.substring(0, 1));
+            }
+        }
+        return sb.toString();
     }
     
     private void writeCatalog(CatalogModel catalog) throws FileNotFoundException, XMLStreamException, IOException {
@@ -165,11 +188,6 @@ public class Catalog extends AbstractMojo {
             writer.setDefaultNamespace("urn:oasis:names:tc:entity:xmlns:xml:catalog");
             writer.writeStartElement(CATALOG_NS, "catalog");
             writer.writeAttribute("xmlns", CATALOG_NS);
-//            if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
-//                writer.writeStartElement(CATALOG_NS, "group");
-//                writer.writeAttribute(XMLConstants.XML_NS_PREFIX, XMLConstants.XML_NS_URI, "base", "file:/home/fakeuser");
-//                writer.writeComment("\n\t\tBe aware of xml:base attribute.\n\t\tIf you must reference other catalogs, define them outside of this group, or use your own group, as :\n\t\t\t\t<group xml:base=\"...\">\n\t\t\t\t\t<next-catalog.../>\n\t\t\t\t</group> \n");
-//            }
             for(RewriteSystemModel rsm:catalog.getEntries()) {
                 writer.writeStartElement(CATALOG_NS, "rewriteURI");
                 writer.writeAttribute("uriStartString", rsm.getUriStartPrefix());
@@ -180,9 +198,6 @@ public class Catalog extends AbstractMojo {
                 writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
                 writer.writeEndElement();
             }
-//            if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
-//                writer.writeEndElement();
-//            }
             writer.writeEndElement();
             writer.writeEndDocument();
             fos.flush();
@@ -207,7 +222,6 @@ public class Catalog extends AbstractMojo {
         getLog().debug(LOG_PREFIX+" looking for parentry of "+dn.getArtifact().toString());
         String classifier = dn.getArtifact().getClassifier();
         getLog().debug(LOG_PREFIX+"classifier="+classifier);
-        // classifier==null || 
         if( classifier!=null && Arrays.binarySearch(ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS, classifier)>=0) {
             getLog().debug(LOG_PREFIX+" return true");
             return true;
@@ -253,5 +267,13 @@ public class Catalog extends AbstractMojo {
         getLog().debug(LOG_PREFIX+"artifact.baseVersion="+art.getBaseVersion());
         elements[elements.length-1] = art.getBaseVersion();
         return Joiner.on(File.separator).skipNulls().join(elements);
+    }
+    
+    /**
+     * for UT only
+     * @param patternUrl 
+     */
+    void setPatternUrl(String patternUrl) {
+        this.patternUrl = patternUrl;
     }
 }

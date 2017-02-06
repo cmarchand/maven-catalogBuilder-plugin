@@ -4,7 +4,7 @@
 
     <groupId>top.marchand.xml.maven</groupId>
     <artifactId>catalogBuilder-maven-plugin</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3-SNAPSHOT</version>
     <packaging>maven-plugin</packaging>
 
     <name>catalogBuilder-maven-plugin Maven Mojo</name>
@@ -103,6 +103,11 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>19.0</version>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.12</version>
         </dependency>
     </dependencies>
  
