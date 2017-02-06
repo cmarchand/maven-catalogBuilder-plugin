@@ -62,7 +62,7 @@ public class Catalog extends AbstractMojo {
     @Parameter( defaultValue = "catalog.xml")
     private String catalogFileName;
     
-    @Parameter (defaultValue = "artifactId:")
+    @Parameter (defaultValue = "artifactId:/")
     private String patternUrl;
     
     @Parameter()
