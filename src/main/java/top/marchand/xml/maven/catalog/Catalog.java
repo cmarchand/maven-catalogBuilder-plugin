@@ -46,6 +46,18 @@ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
 import org.apache.maven.shared.dependency.graph.DependencyNode;
 import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
 import com.google.common.base.Joiner;
+import java.util.HashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import net.sf.saxon.Configuration;
+import net.sf.saxon.s9api.DocumentBuilder;
+import net.sf.saxon.s9api.Processor;
+import net.sf.saxon.s9api.SaxonApiException;
+import net.sf.saxon.s9api.XPathCompiler;
+import net.sf.saxon.s9api.XPathSelector;
+import net.sf.saxon.s9api.XdmNode;
+import net.sf.saxon.s9api.XdmSequenceIterator;
+import net.sf.saxon.s9api.XdmValue;
 
 /**
  * Generates a catalog, based on dependency tree, where each dependency is re-written to the jar URL.
@@ -73,8 +85,16 @@ public class Catalog extends AbstractMojo {
     
     private DependencyNode rootNode;
     
+    private HashMap<File,MyArtifact> dependencyDirs;
+    private DocumentBuilder builder;
+    private XPathCompiler compiler;
+    
     @Override
     public void execute() throws MojoExecutionException {
+        dependencyDirs = new HashMap<>();
+        Processor proc = new Processor(Configuration.newConfiguration());
+        builder = proc.newDocumentBuilder();
+        compiler = proc.newXPathCompiler();
         if(rewriteToProtocol!=null && !rewriteToProtocol.endsWith(":/")) {
             rewriteToProtocol=rewriteToProtocol.concat(":/");
         }
@@ -139,17 +159,84 @@ public class Catalog extends AbstractMojo {
                     for(String s:classpaths) {
                         if(s.contains(artifactPath)) {
                             jarFileName = s;
+                        } else if(s.endsWith("target/classes")) {
+                            // issue #2
+                            getLog().debug("found classpath : "+s);
+                            // dir should be the project basedir
+                            File dir = new File(s).getParentFile().getParentFile();
+                            if(isPathMatchesDependency(dir,groupId, artifactId, version)) {
+                                jarFileName = s;
+                            }
                         }
                     }
                 }
                 getLog().debug(LOG_PREFIX+artifactId+" -> "+jarFileName);
-                RewriteSystemModel rsm = new RewriteSystemModel(buildPattern(groupId,artifactId,version), "jar:file:"+jarFileName+"!/");
-                if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
-                    catalog.getEntries().add(rsm);
+                if(jarFileName!=null) {
+                    RewriteSystemModel rsm = (jarFileName.endsWith(".jar")) ?
+                            new RewriteSystemModel(buildPattern(groupId,artifactId,version), "jar:file:"+jarFileName+"!/") :
+                            new RewriteSystemModel(buildPattern(groupId,artifactId,version), new File(jarFileName).toURI().toString());
+                    if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
+                        catalog.getEntries().add(rsm);
+                    }
                 }
             } catch (OverConstrainedVersionException ex) {
                 getLog().error(LOG_PREFIX+ex.getMessage(), ex);
             }
+        }
+    }
+    boolean isPathMatchesDependency(final File dir, final String groupId, final String artifactId, final String version) {
+        MyArtifact art = dependencyDirs.get(dir);
+        if(art==null) {
+            art=loadArtifactFromDir(dir);
+            if(art!=null) {
+                dependencyDirs.put(dir,art);
+                return groupId.equals(art.getGroupId()) && artifactId.equals(art.getArtifactId()) && version.equals(art.getVersion());
+            }
+        }
+        return false;
+    }
+    MyArtifact loadArtifactFromDir(final File dir) {
+        try {
+            XdmNode pom = builder.build(new File(dir,"pom.xml"));
+            compiler.declareNamespace("mvn", "http://maven.apache.org/POM/4.0.0");
+            XPathSelector selector = compiler.compile("/mvn:project/(mvn:groupId | mvn:artifactId | mvn:version)").load();
+            selector.setContextItem(pom);
+            XdmValue ret = selector.evaluate();
+            String groupId=null, artifactId=null, version=null;
+            for(XdmSequenceIterator it=ret.iterator();it.hasNext();) {
+                XdmNode node=(XdmNode)it.next();
+                switch(node.getNodeName().getLocalName()) {
+                    case "groupId": groupId = node.getStringValue(); break;
+                    case "artifactId": artifactId = node.getStringValue(); break;
+                    case "version": version = node.getStringValue();
+                }
+            }
+            if(version==null) {
+                String relativePath = "../pom.xml";
+                // case where version is in parent pom. Look for it...
+                XPathSelector selector2 = compiler.compile("/mvn:project/mvn:parent/mvn:relativePath").load();
+                selector2.setContextItem(pom);
+                XdmValue vRelativePath = selector2.evaluate();
+                if(vRelativePath.size()>0) {
+                    getLog().debug("vRelativePath is a "+vRelativePath.getClass().getName());
+                    getLog().debug("vRelativePath is "+vRelativePath.size()+" long");
+                    getLog().debug("vRelativePath: "+vRelativePath.toString());
+                    relativePath = ((XdmNode)vRelativePath).getStringValue();
+                }
+                File parentPomFile = new File(dir, relativePath);
+                if(parentPomFile.isDirectory()) {
+                    parentPomFile = new File(parentPomFile, "pom.xml");
+                }
+                XPathSelector versionSelector = compiler.compile("/mvn:project/mvn:version").load();
+                versionSelector.setContextItem(builder.build(parentPomFile));
+                version = ((XdmNode)versionSelector.evaluate()).getStringValue();
+            }
+            MyArtifact art = new MyArtifact(groupId, artifactId, version);
+            getLog().debug(art.toString());
+            return art;
+        } catch (SaxonApiException ex) {
+            getLog().error("in loadArtifactFromDir", ex);
+            return null;
         }
     }
     
@@ -276,4 +363,22 @@ public class Catalog extends AbstractMojo {
     void setPatternUrl(String patternUrl) {
         this.patternUrl = patternUrl;
     }
+    
+    private class MyArtifact {
+        private final String groupId, artifactId, version;
+        public MyArtifact(final String groupId, final String artifactId, final String version) {
+            super();
+            this.groupId=groupId;
+            this.artifactId=artifactId;
+            this.version=version;
+        }
+        public String getGroupId() { return groupId; }
+        public String getArtifactId() { return artifactId; }
+        public String getVersion() { return version; }
+        @Override
+        public String toString() {
+            return String.format("artifact[%s,%s,%s]", groupId, artifactId, version);
+        }
+    }
+
 }
