@@ -159,7 +159,7 @@ public class Catalog extends AbstractMojo {
                     for(String s:classpaths) {
                         if(s.contains(artifactPath)) {
                             jarFileName = s;
-                        } else if(s.endsWith("target/classes")) {
+                        } else if(s.endsWith("target/classes") || s.matches(".*/target/[^/]+\\.jar")) {
                             // issue #2
                             getLog().debug("found classpath : "+s);
                             // dir should be the project basedir
