@@ -215,7 +215,7 @@ public class Catalog extends AbstractMojo {
                     case "version": version = node.getStringValue();
                 }
             }
-            if(version==null) {
+            if(version==null || groupId==null) {
                 String relativePath = "../pom.xml";
                 // case where version is in parent pom. Look for it...
                 XPathSelector selector2 = compiler.compile("/mvn:project/mvn:parent/mvn:relativePath").load();
@@ -231,9 +231,16 @@ public class Catalog extends AbstractMojo {
                 if(parentPomFile.isDirectory()) {
                     parentPomFile = new File(parentPomFile, "pom.xml");
                 }
-                XPathSelector versionSelector = compiler.compile("/mvn:project/mvn:version").load();
-                versionSelector.setContextItem(builder.build(parentPomFile));
-                version = ((XdmNode)versionSelector.evaluate()).getStringValue();
+                if(version==null) {
+                    XPathSelector versionSelector = compiler.compile("/mvn:project/mvn:version").load();
+                    versionSelector.setContextItem(builder.build(parentPomFile));
+                    version = ((XdmNode)versionSelector.evaluate()).getStringValue();
+                }
+                if(groupId==null) {
+                    XPathSelector groupIdSelector = compiler.compile("/mvn:project/mvn:groupId").load();
+                    groupIdSelector.setContextItem(builder.build(parentPomFile));
+                    groupId = ((XdmNode)groupIdSelector.evaluate()).getStringValue();
+                }
             }
             MyArtifact art = new MyArtifact(groupId, artifactId, version);
             getLog().debug(art.toString());
