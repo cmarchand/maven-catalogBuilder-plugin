@@ -47,8 +47,6 @@ import org.apache.maven.shared.dependency.graph.DependencyNode;
 import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
 import com.google.common.base.Joiner;
 import java.util.HashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.s9api.DocumentBuilder;
 import net.sf.saxon.s9api.Processor;
@@ -159,7 +157,7 @@ public class Catalog extends AbstractMojo {
                     for(String s:classpaths) {
                         if(s.contains(artifactPath)) {
                             jarFileName = s;
-                        } else if(s.endsWith("target/classes") || s.matches(".*/target/[^/]+\\.jar")) {
+                        } else if(s.endsWith("target/classes") || s.matches(".*[/\\\\]target[/\\\\][^/\\\\]+\\.jar")) {
                             // issue #2
                             getLog().debug("found classpath : "+s);
                             // dir should be the project basedir
