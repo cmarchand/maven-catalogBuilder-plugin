@@ -4,7 +4,7 @@
 
     <groupId>top.marchand.xml.maven</groupId>
     <artifactId>catalogBuilder-maven-plugin</artifactId>
-    <version>1.0.4-RC3</version>
+    <version>1.0.4-RC4-SNAPSHOT</version>
     <packaging>maven-plugin</packaging>
 
     <name>catalogBuilder-maven-plugin Maven Mojo</name>

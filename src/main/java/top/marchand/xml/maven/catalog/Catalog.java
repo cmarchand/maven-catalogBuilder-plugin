@@ -164,6 +164,9 @@ public class Catalog extends AbstractMojo {
                             File dir = new File(s).getParentFile().getParentFile();
                             if(isPathMatchesDependency(dir,groupId, artifactId, version)) {
                                 jarFileName = s;
+                            } else {
+                                getLog().debug(LOG_PREFIX+s+" does not match ("+dir.getAbsolutePath()+","+groupId+","+artifactId+","+version+")");
+                                getLog().debug(LOG_PREFIX+artifactId+":/ won't be bind to a classpath element");
                             }
                         }
                     }
