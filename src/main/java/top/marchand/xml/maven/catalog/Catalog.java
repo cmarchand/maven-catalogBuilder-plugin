@@ -192,9 +192,12 @@ public class Catalog extends AbstractMojo {
             if(art!=null) {
                 dependencyDirs.put(dir,art);
                 return groupId.equals(art.getGroupId()) && artifactId.equals(art.getArtifactId()) && version.equals(art.getVersion());
+            } else {
+                return false;
             }
+        } else {
+            return groupId.equals(art.getGroupId()) && artifactId.equals(art.getArtifactId()) && version.equals(art.getVersion());
         }
-        return false;
     }
     MyArtifact loadArtifactFromDir(final File dir) {
         try {
