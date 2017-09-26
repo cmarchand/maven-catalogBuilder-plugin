@@ -78,6 +78,9 @@ public class Catalog extends AbstractMojo {
     @Parameter()
     private String rewriteToProtocol;
     
+    @Parameter()
+    private boolean includeCurrentArtifact;
+    
     @Component( hint = "default" )
     private DependencyGraphBuilder dependencyGraphBuilder;
     
@@ -114,7 +117,7 @@ public class Catalog extends AbstractMojo {
                     @Override
                     public boolean visit(DependencyNode dn) {
                         getLog().debug(LOG_PREFIX+"Visiting "+dn.toNodeString());
-                        if(!dn.getArtifact().equals(project.getArtifact())) {
+                        if(!dn.getArtifact().equals(project.getArtifact()) || includeCurrentArtifact) {
                             processDependency(dn, classpaths, catalog);
                         }
                         return true;
