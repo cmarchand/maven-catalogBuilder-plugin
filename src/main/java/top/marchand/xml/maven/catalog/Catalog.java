@@ -67,19 +67,22 @@ import net.sf.saxon.s9api.XdmValue;
 public class Catalog extends AbstractMojo {
     
     @Parameter( defaultValue = "${project}", readonly = true, required = true )
-    private MavenProject project;
+    public MavenProject project;
     
     @Parameter( defaultValue = "catalog.xml")
-    private String catalogFileName;
+    public String catalogFileName;
     
     @Parameter (defaultValue = "artifactId:/")
-    private String patternUrl;
+    public String patternUrl;
     
     @Parameter()
     private String rewriteToProtocol;
     
     @Parameter()
-    private boolean includeCurrentArtifact;
+    public boolean includeCurrentArtifact;
+    
+    @Parameter()
+    public String nextCatalog;
     
     @Component( hint = "default" )
     private DependencyGraphBuilder dependencyGraphBuilder;
@@ -297,6 +300,11 @@ public class Catalog extends AbstractMojo {
                 writer.writeStartElement(CATALOG_NS, "rewriteSystem");
                 writer.writeAttribute("systemIdStartString", rsm.getUriStartPrefix());
                 writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
+                writer.writeEndElement();
+            }
+            if(nextCatalog!=null && !nextCatalog.isEmpty()) {
+                writer.writeStartElement(CATALOG_NS, "nextCatalog");
+                writer.writeAttribute("catalog", nextCatalog);
                 writer.writeEndElement();
             }
             writer.writeEndElement();
