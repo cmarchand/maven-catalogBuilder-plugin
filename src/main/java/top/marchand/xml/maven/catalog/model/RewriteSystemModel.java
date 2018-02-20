@@ -14,15 +14,19 @@ import java.io.Serializable;
 public class RewriteSystemModel implements Serializable {
     private String uriStartPrefix;
     private String rewritePrefix;
+    private String groupId, artifactId, version;
     
     public RewriteSystemModel() {
         super();
     }
     
-    public RewriteSystemModel(String uriStartPrefix, String rewritePrefix) {
+    public RewriteSystemModel(String uriStartPrefix, String rewritePrefix, String groupId, String artifactId, String version) {
         this();
         this.uriStartPrefix=uriStartPrefix;
         this.rewritePrefix=rewritePrefix;
+        this.groupId=groupId;
+        this.artifactId=artifactId;
+        this.version=version;
     }
 
     public String getUriStartPrefix() {
@@ -40,6 +44,32 @@ public class RewriteSystemModel implements Serializable {
     public void setRewritePrefix(String rewritePrefix) {
         this.rewritePrefix = rewritePrefix;
     }
+
+    public String getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
+    }
+
+    public String getArtifactId() {
+        return artifactId;
+    }
+
+    public void setArtifactId(String artifactId) {
+        this.artifactId = artifactId;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+    
+    
 
     @Override
     public int hashCode() {

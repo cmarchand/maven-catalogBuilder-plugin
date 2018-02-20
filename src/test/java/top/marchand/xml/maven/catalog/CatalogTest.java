@@ -30,12 +30,9 @@ public class CatalogTest {
         String artifactId = "artifact";
         String version = "1.0.0";
         Catalog catalog = new Catalog();
-        catalog.setPatternUrl("artifactId:/");
-        Assert.assertEquals("artifact:/", catalog.buildPattern(groupId, artifactId, version));
-        catalog.setPatternUrl("groupId:artifactId:/");
-        Assert.assertEquals("groupe:artifact:/", catalog.buildPattern(groupId, artifactId, version));
-        catalog.setPatternUrl("groupId:artifactId:version:/");
-        Assert.assertEquals("groupe:artifact:1.0.0:/", catalog.buildPattern(groupId, artifactId, version));
+        Assert.assertEquals("dependency://artifact/", catalog.buildPattern("compact",groupId, artifactId, version));
+        Assert.assertEquals("dependency://groupe+artifact/", catalog.buildPattern("standard", groupId, artifactId, version));
+        Assert.assertEquals("dependency://groupe+artifact$1.0.0/", catalog.buildPattern("full", groupId, artifactId, version));
     }
     
 }
