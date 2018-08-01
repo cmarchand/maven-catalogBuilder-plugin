@@ -84,6 +84,9 @@ public class Catalog extends AbstractMojo {
     @Parameter()
     public String nextCatalog;
     
+    @Parameter( defaultValue = "true")
+    public boolean removeDoctype;
+    
     @Component( hint = "default" )
     private DependencyGraphBuilder dependencyGraphBuilder;
     
@@ -288,7 +291,9 @@ public class Catalog extends AbstractMojo {
             XMLStreamWriter writer = fact.createXMLStreamWriter(fos,"UTF-8");
             writer = new IndentingXMLStreamWriter(writer);
             writer.writeStartDocument("UTF-8", "1.0");
-            writer.writeDTD("<!DOCTYPE catalog PUBLIC \"-//OASIS//DTD Entity Resolution XML Catalog V1.0//EN\" \"http://www.oasis-open.org/committees/entity/release/1.0/catalog.dtd\">");
+            if(!removeDoctype) {
+                writer.writeDTD("<!DOCTYPE catalog PUBLIC \"-//OASIS//DTD Entity Resolution XML Catalog V1.0//EN\" \"http://www.oasis-open.org/committees/entity/release/1.0/catalog.dtd\">");
+            }
             writer.setDefaultNamespace("urn:oasis:names:tc:entity:xmlns:xml:catalog");
             writer.writeStartElement(CATALOG_NS, "catalog");
             writer.writeAttribute("xmlns", CATALOG_NS);
