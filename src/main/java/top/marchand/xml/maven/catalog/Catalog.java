@@ -84,6 +84,11 @@ public class Catalog extends AbstractMojo {
     @Parameter()
     public String nextCatalog;
     
+    /**
+     * If set to <tt>true</tt>, removes the DOCTYPE from catalog file.
+     * Default is true, so this is a major change since 1.0.6
+     * @since 1.0.7
+     */
     @Parameter( defaultValue = "true")
     public boolean removeDoctype;
     
