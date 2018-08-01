@@ -165,10 +165,10 @@ public class Catalog extends AbstractMojo {
     /**
      * Allows to add <tt>&lt;delegatePublic /&gt;</tt> entries to generated catalog.
      * Each entry should be as :
-     * <tt>&lt;delegateEntry&gt;
+     * <pre>&lt;delegateEntry&gt;
      *   &lt;startString&gt;publicIdStartString&lt;/startString&gt;
      *   &lt;catalog&gt;catalog&lt;/catalog&gt;
-     * &lt;/delegateEntry&gt;</tt>
+     * &lt;/delegateEntry&gt;</pre>
      */
     @Parameter()
     public List<DelegateEntry> delegatesPublic;
@@ -176,10 +176,10 @@ public class Catalog extends AbstractMojo {
     /**
      * Allows to add <tt>&lt;delegateSystem /&gt;</tt> entries to generated catalog.
      * Each entry should be as :
-     * <tt>&lt;delegateEntry&gt;
+     * <pre>&lt;delegateEntry&gt;
      *   &lt;startString&gt;systemIdStartString&lt;/startString&gt;
      *   &lt;catalog&gt;catalog&lt;/catalog&gt;
-     * &lt;/delegateEntry&gt;</tt>
+     * &lt;/delegateEntry&gt;</pre>
      */
     @Parameter()
     public List<DelegateEntry> delegatesSystem;
@@ -187,10 +187,10 @@ public class Catalog extends AbstractMojo {
     /**
      * Allows to add <tt>&lt;delegateURI /&gt;</tt> entries to generated catalog.
      * Each entry should be as :
-     * <tt>&lt;delegateEntry&gt;
+     * <pre>&lt;delegateEntry&gt;
      *   &lt;startString&gt;uriStartString&lt;/startString&gt;
      *   &lt;catalog&gt;catalog&lt;/catalog&gt;
-     * &lt;/delegateEntry&gt;</tt>
+     * &lt;/delegateEntry&gt;</pre>
      */
     @Parameter()
     public List<DelegateEntry> delegatesURI;
