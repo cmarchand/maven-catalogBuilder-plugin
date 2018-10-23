@@ -66,23 +66,133 @@ import net.sf.saxon.s9api.XdmValue;
         requiresDependencyResolution = ResolutionScope.COMPILE)
 public class Catalog extends AbstractMojo {
     
+    public static final transient String SCHEME = "dependency://";
+    
     @Parameter( defaultValue = "${project}", readonly = true, required = true )
     public MavenProject project;
     
+    /**
+     * The catalog file. 
+     * It is always a path relative to <tt>${project.basedir}</tt>.
+     */
     @Parameter( defaultValue = "catalog.xml")
     public String catalogFileName;
     
-    @Parameter (defaultValue = "artifactId:/")
-    public String patternUrl;
+    /**
+     * The URI patterns to generate.
+     * Valid values are :
+     * <table>
+     *   <caption>Kind of patterns and URIs</caption>
+     *   <thead>
+     *     <tr><th>pattern</th><th>URI form</th></tr>
+     *   </thead>
+     *   <tbody>
+     *     <tr><td><tt>standard</tt></td><td><tt>dependency://goupId+artifactId/path/to/file.xml</tt></td></tr>
+     *     <tr><td><tt>full</tt></td><td><tt>dependency://groupId+artifactId$version/path/to/file.xml</tt></td></tr>
+     *   </tbody>
+     * </table>
+     */
+    @Parameter()
+    public List<String> uriPatterns;
+    {
+        uriPatterns=new ArrayList<>();
+        uriPatterns.add("standard");
+    }
     
+    /**
+     * The entries to add in catalog. If not defined, <tt>&lt;rewriteURI/&gt;</tt>
+     * and <tt>&lt;rewriteSystem/&gt;</tt> will be generated.
+     */
+    @Parameter()
+    public List<String> generates;
+    {
+        generates = new ArrayList<>();
+        generates.add("rewriteURI");
+        generates.add("rewriteSystem");
+    }
+    
+    /**
+     * If defined, all catalog entries will be rewritten to this protocol.
+     * Usually, if defined, the value is <tt>cp:/</tt>, and generaterd artifact
+     * will be used with {@link https://github.com/cmarchand/cp-protocol}.
+     */
     @Parameter()
     private String rewriteToProtocol;
     
+    /**
+     * If <tt>true</tt>, current artifact (the project which is actually built) will
+     * be included in catalog.
+     * This does not depend on {@link #includes} and {@link #excludes}
+     */
     @Parameter()
     public boolean includeCurrentArtifact;
     
+    /**
+     * The next catalog to add to catalog. If null, no <tt>&lt;nextCatalog/&gt;</tt>
+     * will be added.
+     */
     @Parameter()
-    public String nextCatalog;
+    public List<String> nextCatalogs;
+    
+    /**
+     * List of artifacts to exclude. 
+     * Each artifact must be specified as <tt>groupId:artifactId</tt>.
+     * Both <tt>groupId</tt> and <tt>artifactId</tt> can be replaced by <tt>*</tt>.
+     * <tt>excludes</tt> and {@link #includes} are exclusives, and <strong>must not</strong> be used together.
+     * 
+     * If <tt>excludes</tt> is specified, all dependencies are used, except the ones that
+     * match <tt>excludes</tt>.
+     * 
+     * Project's artifact is processed neither by <tt>excludes</tt> nor <tt>includes</tt>
+     */
+    @Parameter()
+    public List<String> excludes;
+    
+    /**
+     * List of artifacts to include. 
+     * Each artifact must be specified as <tt>groupId:artifactId</tt>.
+     * Both <tt>groupId</tt> and <tt>artifactId</tt> can be replaced by <tt>*</tt>.
+     * <tt>includes</tt> and {@link #excludes} are exclusives, and <strong>must not</strong> be used together.
+     * 
+     * If <tt>includes</tt> is specified, all dependencies that match <tt>includes</tt> are used.
+     * 
+     * Project's artifact is processed neither by <tt>excludes</tt> nor <tt>includes</tt>
+     */
+    @Parameter()
+    public List<String> includes;
+    
+    /**
+     * Allows to add <tt>&lt;delegatePublic /&gt;</tt> entries to generated catalog.
+     * Each entry should be as :
+     * <pre>&lt;delegateEntry&gt;
+     *   &lt;startString&gt;publicIdStartString&lt;/startString&gt;
+     *   &lt;catalog&gt;catalog&lt;/catalog&gt;
+     * &lt;/delegateEntry&gt;</pre>
+     */
+    @Parameter()
+    public List<DelegateEntry> delegatesPublic;
+    
+    /**
+     * Allows to add <tt>&lt;delegateSystem /&gt;</tt> entries to generated catalog.
+     * Each entry should be as :
+     * <pre>&lt;delegateEntry&gt;
+     *   &lt;startString&gt;systemIdStartString&lt;/startString&gt;
+     *   &lt;catalog&gt;catalog&lt;/catalog&gt;
+     * &lt;/delegateEntry&gt;</pre>
+     */
+    @Parameter()
+    public List<DelegateEntry> delegatesSystem;
+    
+    /**
+     * Allows to add <tt>&lt;delegateURI /&gt;</tt> entries to generated catalog.
+     * Each entry should be as :
+     * <pre>&lt;delegateEntry&gt;
+     *   &lt;startString&gt;uriStartString&lt;/startString&gt;
+     *   &lt;catalog&gt;catalog&lt;/catalog&gt;
+     * &lt;/delegateEntry&gt;</pre>
+     */
+    @Parameter()
+    public List<DelegateEntry> delegatesURI;
     
     /**
      * If set to <tt>true</tt>, removes the DOCTYPE from catalog file.
@@ -107,12 +217,6 @@ public class Catalog extends AbstractMojo {
         Processor proc = new Processor(Configuration.newConfiguration());
         builder = proc.newDocumentBuilder();
         compiler = proc.newXPathCompiler();
-        if(rewriteToProtocol!=null && !rewriteToProtocol.endsWith(":/")) {
-            rewriteToProtocol=rewriteToProtocol.concat(":/");
-        }
-        if(!patternUrl.endsWith(":/")) {
-            throw new MojoExecutionException("Illegal patternUrl value. patternUrl must end with :/");
-        }
         
         final List<String> classpaths;
         try {
@@ -128,7 +232,7 @@ public class Catalog extends AbstractMojo {
                     @Override
                     public boolean visit(DependencyNode dn) {
                         getLog().debug(LOG_PREFIX+"Visiting "+dn.toNodeString());
-                        if(!dn.getArtifact().equals(project.getArtifact()) || includeCurrentArtifact) {
+                        if(shouldProcessDependency(dn)) {
                             processDependency(dn, classpaths, catalog);
                         }
                         return true;
@@ -149,14 +253,40 @@ public class Catalog extends AbstractMojo {
         }
     }
     
+    protected boolean shouldProcessDependency(DependencyNode dn) {
+        Artifact artifact = dn.getArtifact();
+        if(artifact.equals(project.getArtifact())) return includeCurrentArtifact;
+        String groupId = artifact.getGroupId();
+        String artifactId = artifact.getArtifactId();
+        
+        String[] patterns = { groupId+":"+artifactId, "*:"+artifactId, groupId+":*" };
+        if((includes==null || includes.isEmpty()) && (excludes==null || excludes.isEmpty())) return true;
+        if(includes!=null && !includes.isEmpty()) {
+            for(String pattern: patterns) {
+                if(includes.contains(pattern)) return true;
+            }
+            return false;
+        } else {
+            for(String pattern: patterns) {
+                if(excludes.contains(pattern)) return false;
+            }
+            return true;
+        }
+    }
+    
     private void processDependency(DependencyNode dn, List<String> classpaths, CatalogModel catalog) {
-        String artifactId = dn.getArtifact().getArtifactId();
         String groupId = dn.getArtifact().getGroupId();
+        String artifactId = dn.getArtifact().getArtifactId();
         String version = dn.getArtifact().getVersion();
         if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
-            RewriteSystemModel rsm = new RewriteSystemModel(buildPattern(groupId,artifactId,version), rewriteToProtocol);
-            if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
-                catalog.getEntries().add(rsm);
+            for(String pattern: uriPatterns) {
+                RewriteSystemModel rsm = new RewriteSystemModel(
+                        buildPattern(pattern, groupId,artifactId,version), 
+                        rewriteToProtocol,
+                        groupId, artifactId, version);
+//                if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
+                    catalog.getEntries().add(rsm);
+//                }
             }
         } else {
             try {
@@ -187,17 +317,38 @@ public class Catalog extends AbstractMojo {
                 }
                 getLog().debug(LOG_PREFIX+artifactId+" -> "+jarFileName);
                 if(jarFileName!=null) {
-                    RewriteSystemModel rsm = (jarFileName.endsWith(".jar")) ?
-                            new RewriteSystemModel(buildPattern(groupId,artifactId,version), "jar:file:"+jarFileName+"!/") :
-                            new RewriteSystemModel(buildPattern(groupId,artifactId,version), new File(jarFileName).toURI().toString());
-                    if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
-                        catalog.getEntries().add(rsm);
+                    for(String pattern: uriPatterns) {
+                        RewriteSystemModel rsm = (jarFileName.endsWith(".jar")) ?
+                                new RewriteSystemModel(
+                                    buildPattern(pattern, groupId,artifactId,version), 
+                                    "jar:file:"+jarFileName+"!/",
+                                    groupId, artifactId, version):
+                                new RewriteSystemModel(
+                                    buildPattern(pattern, groupId,artifactId,version), 
+                                    new File(jarFileName).toURI().toString(),
+                                    groupId, artifactId, version);
+//                        if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
+                            catalog.getEntries().add(rsm);
+//                        }
                     }
                 }
             } catch (OverConstrainedVersionException ex) {
                 getLog().error(LOG_PREFIX+ex.getMessage(), ex);
             }
         }
+    }
+    
+    protected String buildPattern(String pattern, String groupId, String artifactId, String version) {
+        StringBuilder sb = new StringBuilder(SCHEME);
+        if("full".equals(pattern) || "standard".equals(pattern)) {
+            sb.append(groupId).append("+");
+        }
+        sb.append(artifactId);
+        if("full".equals(pattern)) {
+            sb.append("$").append(version);
+        }
+        sb.append("/");
+        return sb.toString();
     }
     boolean isPathMatchesDependency(final File dir, final String groupId, final String artifactId, final String version) {
         MyArtifact art = dependencyDirs.get(dir);
@@ -264,28 +415,8 @@ public class Catalog extends AbstractMojo {
             return null;
         }
     }
-    
-    String buildPattern(final String groupId, final String artifactId, final String version) {
-        StringBuilder sb = new StringBuilder();
-        for(int i=0; i<patternUrl.length(); i++) {
-            String s = patternUrl.substring(i);
-            if(s.startsWith("groupId")) {
-                sb.append(groupId);
-                i+=("groupId".length()-1);
-            } else if(s.startsWith("artifactId")) {
-                sb.append(artifactId);
-                i+=("artifactId".length()-1);
-            } else if(s.startsWith("version")) {
-                sb.append(version);
-                i+=("version".length()-1);
-            } else {
-                sb.append(s.substring(0, 1));
-            }
-        }
-        return sb.toString();
-    }
-    
-    private void writeCatalog(CatalogModel catalog) throws FileNotFoundException, XMLStreamException, IOException {
+        
+    private void writeCatalog(CatalogModel catalog) throws FileNotFoundException, XMLStreamException, IOException, MojoExecutionException {
         XMLOutputFactory fact = XMLOutputFactory.newFactory();
         File catalogFile = new File(project.getBasedir(), catalogFileName);
         File directory = catalogFile.getParentFile();
@@ -303,23 +434,92 @@ public class Catalog extends AbstractMojo {
             writer.writeStartElement(CATALOG_NS, "catalog");
             writer.writeAttribute("xmlns", CATALOG_NS);
             for(RewriteSystemModel rsm:catalog.getEntries()) {
-                writer.writeStartElement(CATALOG_NS, "rewriteURI");
-                writer.writeAttribute("uriStartString", rsm.getUriStartPrefix());
-                writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
-                writer.writeEndElement();
-                writer.writeStartElement(CATALOG_NS, "rewriteSystem");
-                writer.writeAttribute("systemIdStartString", rsm.getUriStartPrefix());
-                writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
-                writer.writeEndElement();
+                for(String generate: generates) {
+                    writeCatalogEntry(writer, generate, rsm);
+                }
             }
-            if(nextCatalog!=null && !nextCatalog.isEmpty()) {
-                writer.writeStartElement(CATALOG_NS, "nextCatalog");
-                writer.writeAttribute("catalog", nextCatalog);
-                writer.writeEndElement();
+            if(delegatesPublic!=null) {
+                for(DelegateEntry de: delegatesPublic) {
+                    writeDelegateEntry(writer, "delegatePublic", de);
+                }
+            }
+            if(delegatesSystem!=null) {
+                for(DelegateEntry de: delegatesSystem) {
+                    writeDelegateEntry(writer, "delegateSystem", de);
+                }
+            }
+            if(delegatesURI!=null) {
+                for(DelegateEntry de: delegatesURI) {
+                    writeDelegateEntry(writer, "delegateURI", de);
+                }
+            }
+            if(nextCatalogs!=null) {
+                for(String nextCatalog: nextCatalogs) {
+                    writer.writeEmptyElement(CATALOG_NS, "nextCatalog");
+                    writer.writeAttribute("catalog", nextCatalog);
+                }
             }
             writer.writeEndElement();
             writer.writeEndDocument();
             fos.flush();
+        }
+    }
+    protected void writeDelegateEntry(XMLStreamWriter writer, String delegate, DelegateEntry entry) throws XMLStreamException, MojoExecutionException {
+        switch(delegate) {
+            case "delegatePublic" :{
+                writer.writeEmptyElement(CATALOG_NS, "delegatePublic");
+                writer.writeAttribute("publicIdStartString", entry.getStartString());
+                writer.writeAttribute("catalog", entry.getCatalog());
+                break;
+            }
+            case "delegateSystem" :{
+                writer.writeEmptyElement(CATALOG_NS, "delegateSystem");
+                writer.writeAttribute("systemIdStartString", entry.getStartString());
+                writer.writeAttribute("catalog", entry.getCatalog());
+                break;
+            }
+            case "delegateURI" :{
+                writer.writeEmptyElement(CATALOG_NS, "delegateURI");
+                writer.writeAttribute("uriStartString", entry.getStartString());
+                writer.writeAttribute("catalog", entry.getCatalog());
+                break;
+            }
+            default: throw new MojoExecutionException("Illegal value for generate: "+delegate);
+        }
+    }
+    protected void writeCatalogEntry(XMLStreamWriter writer, final String entry, final RewriteSystemModel rsm) throws XMLStreamException, MojoExecutionException {
+        switch(entry) {
+            case "rewriteURI" : {
+                writer.writeEmptyElement(CATALOG_NS, "rewriteURI");
+                writer.writeAttribute("uriStartString", rsm.getUriStartPrefix());
+                writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
+                break;
+            }
+            case "rewriteSystem": {
+                writer.writeEmptyElement(CATALOG_NS, "rewriteSystem");
+                writer.writeAttribute("systemIdStartString", rsm.getUriStartPrefix());
+                writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
+                break;
+            }
+            case "public" :{
+                writer.writeEmptyElement(CATALOG_NS, "public");
+                writer.writeAttribute("publicId", rsm.getUriStartPrefix());
+                writer.writeAttribute("uri", rsm.getRewritePrefix());
+                break;
+            }
+            case "system": {
+                writer.writeEmptyElement(CATALOG_NS, "system");
+                writer.writeAttribute("name", rsm.getUriStartPrefix());
+                writer.writeAttribute("uri", rsm.getRewritePrefix());
+                break;
+            }
+            case "uri": {
+                writer.writeEmptyElement(CATALOG_NS, "uri");
+                writer.writeAttribute("name", rsm.getUriStartPrefix());
+                writer.writeAttribute("uri", rsm.getRewritePrefix());
+                break;
+            }
+            default: throw new MojoExecutionException("Illegal value for generate: "+entry);
         }
     }
     private ArtifactFilter buildArtifactFilter() {
@@ -392,8 +592,8 @@ public class Catalog extends AbstractMojo {
      * for UT only
      * @param patternUrl 
      */
-    void setPatternUrl(String patternUrl) {
-        this.patternUrl = patternUrl;
+    void setUriPatterns(List<String> uriPatterns) {
+        this.uriPatterns = uriPatterns;
     }
     
     private class MyArtifact {
@@ -412,5 +612,11 @@ public class Catalog extends AbstractMojo {
             return String.format("artifact[%s,%s,%s]", groupId, artifactId, version);
         }
     }
+    
+    public static final transient String[] ALLOWED_URI_PATTERNS = { "compact", "full", "standard" };
+    public static final transient String[] ALLOWED_REWRITES = {
+        "public", "rewriteSystem", "rewriteURI", "system", "uri"};
+    
+    // "delegatePublic", "delegateSystem", "delegateURI", 
 
 }

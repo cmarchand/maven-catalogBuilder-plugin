@@ -1,0 +1,60 @@
+This plugin allows to generate a catalog based on dependency declarations
+It maps URIs to jar files, allowing to access a resource via its URI
+URIs are like dependency://<artifact>/path/to/resource.txt
+  <artifact> may be :
+    compact  : artifactId
+    standard : groupId+artifactId
+    full     : groupId+artifactId$version
+
+artifact format is defined with uriPatterns configuration entry
+
+Configuration parameters :
+  catalogFileName : path for generated file. It is a path, relative
+      to ${project.basedir}
+  uriPatterns : URI forms that will be processed by catalog.
+      Possible values are :
+         compact  : dependency://artifactId/path/to/res.txt
+         standard : dependency://groupId+artifactId/path/to/res.txt
+         full     : dependency://groupId+artifactId$version/path/to/res.txt
+      If not defined, standard is used.
+  generates : the catalog entries to generate
+      Possible values are :
+         public, rewriteSystem, rewriteURI, system, uri
+      If not defined, rewriteURI and rewriteSystem are used.
+  rewriteToProtocol : If defined, all catalog entries will be rewritten to this
+      protocol. Usually, if defined, the value is <tt>cp:/</tt>, and generaterd
+      artifact will be used with https://github.com/cmarchand/cp-protocol.
+  includeCurrentArtifact : allows to include the project's artifact in generated
+      catalog. Default is false.
+  nextCatalogs : a list a nextCatalog catalog entries.
+  excludes : list of artifacts to exclude from generate. artifacts must be
+      specified as groupId:artifactId. Both groupId and artifactId can be
+      replaced by *.
+      excludes and includes are exclusives, and must not be used together.
+      If excludes is defined, all dependencies are used, except the ones that
+      match excludes. Project's artifact is not concerned by excludes.
+  includes : List of artifacts to include. 
+      Each artifact must be specified as groupId:artifactId. Both groupId and 
+      artifactId can be replaced by *. includes and excludes are exclusives, and
+      must not be used together.
+      If includes is specified, all dependencies that match includes are used.
+      Project's artifact is processed neither by excludes nor includes
+  delegatesPublic : Allows to add <delegatePublic/> entries to generated catalog
+      Each entry should be as :
+        <delegateEntry>
+          <startString>publicIdStartString</startString>
+          <catalog>catalog</catalog> 
+        </delegateEntry>
+  delegatesSystem : Allows to add <delegateSystem/> entries to generated catalog
+      Each entry should be as :
+        <delegateEntry>
+          <startString>publicIdStartString</startString>
+          <catalog>catalog</catalog> 
+        </delegateEntry>
+  delegatesURI : Allows to add <delegateURI/> entries to generated catalog
+      Each entry should be as :
+        <delegateEntry>
+          <startString>publicIdStartString</startString>
+          <catalog>catalog</catalog> 
+        </delegateEntry>
+  
