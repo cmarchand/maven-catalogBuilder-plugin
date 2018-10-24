@@ -1,6 +1,6 @@
 This plugin allows to generate a catalog based on dependency declarations
 It maps URIs to jar files, allowing to access a resource via its URI
-URIs are like dependency://<artifact>/path/to/resource.txt
+URIs are like dependency:/<artifact>/path/to/resource.txt
   <artifact> may be :
     compact  : artifactId
     standard : groupId+artifactId
@@ -13,9 +13,9 @@ Configuration parameters :
       to ${project.basedir}
   uriPatterns : URI forms that will be processed by catalog.
       Possible values are :
-         compact  : dependency://artifactId/path/to/res.txt
-         standard : dependency://groupId+artifactId/path/to/res.txt
-         full     : dependency://groupId+artifactId$version/path/to/res.txt
+         compact  : dependency:/artifactId/path/to/res.txt
+         standard : dependency:/groupId+artifactId/path/to/res.txt
+         full     : dependency:/groupId+artifactId$version/path/to/res.txt
       If not defined, standard is used.
   generates : the catalog entries to generate
       Possible values are :

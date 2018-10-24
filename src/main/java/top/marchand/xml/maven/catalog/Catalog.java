@@ -66,7 +66,7 @@ import net.sf.saxon.s9api.XdmValue;
         requiresDependencyResolution = ResolutionScope.COMPILE)
 public class Catalog extends AbstractMojo {
     
-    public static final transient String SCHEME = "dependency://";
+    public static final transient String SCHEME = "dependency:/";
     
     @Parameter( defaultValue = "${project}", readonly = true, required = true )
     public MavenProject project;
@@ -87,8 +87,8 @@ public class Catalog extends AbstractMojo {
      *     <tr><th>pattern</th><th>URI form</th></tr>
      *   </thead>
      *   <tbody>
-     *     <tr><td><tt>standard</tt></td><td><tt>dependency://goupId+artifactId/path/to/file.xml</tt></td></tr>
-     *     <tr><td><tt>full</tt></td><td><tt>dependency://groupId+artifactId$version/path/to/file.xml</tt></td></tr>
+     *     <tr><td><tt>standard</tt></td><td><tt>dependency:/goupId+artifactId/path/to/file.xml</tt></td></tr>
+     *     <tr><td><tt>full</tt></td><td><tt>dependency:/groupId+artifactId$version/path/to/file.xml</tt></td></tr>
      *   </tbody>
      * </table>
      */
