@@ -1,1 +1,3 @@
 target/
+src/test/xspec/top/marchand/xml/maven/catalog/xsl/*.html
+src/test/xspec/top/marchand/xml/maven/catalog/xsl/xspec/**
