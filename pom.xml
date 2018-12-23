@@ -4,7 +4,7 @@
 
     <groupId>top.marchand.xml.maven</groupId>
     <artifactId>catalogBuilder-maven-plugin</artifactId>
-    <version>3.0.0</version>
+    <version>3.1.0-SNAPSHOT</version>
     <packaging>maven-plugin</packaging>
 
     <name>catalogBuilder-maven-plugin Maven Mojo</name>
@@ -112,7 +112,7 @@
         <dependency>
             <groupId>net.sf.saxon</groupId>
             <artifactId>Saxon-HE</artifactId>
-            <version>9.7.0-15</version>
+            <version>9.8.0-14</version>
         </dependency>
     </dependencies>
  
@@ -128,6 +128,11 @@
     </distributionManagement>
  
     <build>
+      <resources>
+        <resource>
+          <directory>src/main/xsl</directory>
+        </resource>
+      </resources>
         <pluginManagement>
             <plugins>
                 <plugin>

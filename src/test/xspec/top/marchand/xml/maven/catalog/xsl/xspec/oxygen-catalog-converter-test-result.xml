@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="file:/Users/cmarchand/Library/Preferences/com.oxygenxml.developer/extensions/v20.1/frameworks/https___raw.githubusercontent.com_xspec_oXygen_XML_editor_xspec_support_master_build_update_site.xml/xspec.support-1.0.1/src/compiler/format-xspec-report.xsl"?>
+<x:report xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+          xmlns:xs="http://www.w3.org/2001/XMLSchema"
+          xmlns:test="http://www.jenitennison.com/xslt/unit-test"
+          xmlns:x="http://www.jenitennison.com/xslt/xspec"
+          stylesheet="file:/Users/cmarchand/devel/github/maven-catalogBuilder-plugin/src/main/xsl/top/marchand/xml/maven/catalog/xsl/oxygen-catalog-converter.xsl"
+          date="2018-12-22T19:26:11.482+01:00">
+   <x:scenario>
+      <x:label>testing equality</x:label>
+      <x:context>
+         <root attr1="value1">
+            <sub1 attr2="value2">
+          test<sub2 attr3="value3">pouet</sub2>test2
+        </sub1>
+         </root>
+      </x:context>
+      <x:result>
+         <root attr1="value1">
+            <sub1 attr2="value2">
+          test<sub2 attr3="value3">pouet</sub2>test2
+        </sub1>
+         </root>
+      </x:result>
+      <x:test successful="true">
+         <x:label>Same thing</x:label>
+         <x:expect>
+            <root attr1="value1">
+               <sub1 attr2="value2">
+          test<sub2 attr3="value3">pouet</sub2>test2
+        </sub1>
+            </root>
+         </x:expect>
+      </x:test>
+   </x:scenario>
+   <x:scenario>
+      <x:label>Changing jar attribute</x:label>
+      <x:context>
+         <catalog xmlns="fake:namespace">
+            <entry value="jar:file:/here/or/there"/>
+         </catalog>
+      </x:context>
+      <x:result>
+         <catalog xmlns="fake:namespace">
+            <entry value="zip:file:/here/or/there"/>
+         </catalog>
+      </x:result>
+      <x:test successful="true">
+         <x:label>zip</x:label>
+         <x:expect>
+            <catalog xmlns="fake:namespace">
+               <entry value="zip:file:/here/or/there"/>
+            </catalog>
+         </x:expect>
+      </x:test>
+   </x:scenario>
+</x:report>

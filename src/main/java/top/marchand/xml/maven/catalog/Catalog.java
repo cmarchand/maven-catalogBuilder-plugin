@@ -47,15 +47,20 @@ import org.apache.maven.shared.dependency.graph.DependencyNode;
 import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
 import com.google.common.base.Joiner;
 import java.util.HashMap;
+import javax.xml.transform.Source;
+import javax.xml.transform.stream.StreamSource;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.s9api.DocumentBuilder;
 import net.sf.saxon.s9api.Processor;
 import net.sf.saxon.s9api.SaxonApiException;
+import net.sf.saxon.s9api.Serializer;
 import net.sf.saxon.s9api.XPathCompiler;
 import net.sf.saxon.s9api.XPathSelector;
 import net.sf.saxon.s9api.XdmNode;
 import net.sf.saxon.s9api.XdmSequenceIterator;
 import net.sf.saxon.s9api.XdmValue;
+import net.sf.saxon.s9api.XsltCompiler;
+import net.sf.saxon.s9api.XsltTransformer;
 
 /**
  * Generates a catalog, based on dependency tree, where each dependency is re-written to the jar URL.
@@ -68,6 +73,9 @@ public class Catalog extends AbstractMojo {
     
     public static final transient String SCHEME = "dependency:/";
     
+    /**
+     * Current project
+     */
     @Parameter( defaultValue = "${project}", readonly = true, required = true )
     public MavenProject project;
     
@@ -202,21 +210,30 @@ public class Catalog extends AbstractMojo {
     @Parameter( defaultValue = "true")
     public boolean removeDoctype;
     
+    /**
+     * Allows to generate a special catalog for Oxygen, where
+     * jar:file:/ URIs are transformed to zip:file:/ URIs.
+     * Oxygen has a special mecanism to load these kind of resources.
+     */
+    @Parameter( defaultValue = "false" )
+    public boolean generateOxygenCatalog;
+    
     @Component( hint = "default" )
     private DependencyGraphBuilder dependencyGraphBuilder;
     
     private DependencyNode rootNode;
     
     private HashMap<File,MyArtifact> dependencyDirs;
+    private Processor proc;
     private DocumentBuilder builder;
-    private XPathCompiler compiler;
+    private XPathCompiler xpathCompiler;
     
     @Override
     public void execute() throws MojoExecutionException {
         dependencyDirs = new HashMap<>();
-        Processor proc = new Processor(Configuration.newConfiguration());
+        proc = new Processor(Configuration.newConfiguration());
         builder = proc.newDocumentBuilder();
-        compiler = proc.newXPathCompiler();
+        xpathCompiler = proc.newXPathCompiler();
         
         final List<String> classpaths;
         try {
@@ -245,8 +262,12 @@ public class Catalog extends AbstractMojo {
                 rootNode.accept(visitor);
                 writeCatalog(catalog);
                 getLog().debug(LOG_PREFIX+catalog.toString());
-            } catch (XMLStreamException | IOException | DependencyGraphBuilderException ex) {
+                if(generateOxygenCatalog) {
+                    writeOxygenCatalog();
+                }
+            } catch (XMLStreamException | IOException | DependencyGraphBuilderException | SaxonApiException ex) {
                 getLog().error(LOG_PREFIX+ex.getMessage(),ex);
+                throw new MojoExecutionException(ex.getMessage(), ex);
             }
         } catch(DependencyResolutionRequiredException ex) {
             getLog().error(LOG_PREFIX+ex.getMessage(),ex);
@@ -367,8 +388,8 @@ public class Catalog extends AbstractMojo {
     MyArtifact loadArtifactFromDir(final File dir) {
         try {
             XdmNode pom = builder.build(new File(dir,"pom.xml"));
-            compiler.declareNamespace("mvn", "http://maven.apache.org/POM/4.0.0");
-            XPathSelector selector = compiler.compile("/mvn:project/(mvn:groupId | mvn:artifactId | mvn:version)").load();
+            xpathCompiler.declareNamespace("mvn", "http://maven.apache.org/POM/4.0.0");
+            XPathSelector selector = xpathCompiler.compile("/mvn:project/(mvn:groupId | mvn:artifactId | mvn:version)").load();
             selector.setContextItem(pom);
             XdmValue ret = selector.evaluate();
             String groupId=null, artifactId=null, version=null;
@@ -383,7 +404,7 @@ public class Catalog extends AbstractMojo {
             if(version==null || groupId==null) {
                 String relativePath = "../pom.xml";
                 // case where version is in parent pom. Look for it...
-                XPathSelector selector2 = compiler.compile("/mvn:project/mvn:parent/mvn:relativePath").load();
+                XPathSelector selector2 = xpathCompiler.compile("/mvn:project/mvn:parent/mvn:relativePath").load();
                 selector2.setContextItem(pom);
                 XdmValue vRelativePath = selector2.evaluate();
                 if(vRelativePath.size()>0) {
@@ -397,12 +418,12 @@ public class Catalog extends AbstractMojo {
                     parentPomFile = new File(parentPomFile, "pom.xml");
                 }
                 if(version==null) {
-                    XPathSelector versionSelector = compiler.compile("/mvn:project/mvn:version").load();
+                    XPathSelector versionSelector = xpathCompiler.compile("/mvn:project/mvn:version").load();
                     versionSelector.setContextItem(builder.build(parentPomFile));
                     version = ((XdmNode)versionSelector.evaluate()).getStringValue();
                 }
                 if(groupId==null) {
-                    XPathSelector groupIdSelector = compiler.compile("/mvn:project/mvn:groupId").load();
+                    XPathSelector groupIdSelector = xpathCompiler.compile("/mvn:project/mvn:groupId").load();
                     groupIdSelector.setContextItem(builder.build(parentPomFile));
                     groupId = ((XdmNode)groupIdSelector.evaluate()).getStringValue();
                 }
@@ -415,7 +436,22 @@ public class Catalog extends AbstractMojo {
             return null;
         }
     }
+    
+    private void writeOxygenCatalog() throws SaxonApiException {
+        File sourceFile = new File(project.getBasedir(), catalogFileName);
+        String oxygenCatalogFileName = sourceFile.getName();
+        int lastIndex = oxygenCatalogFileName.lastIndexOf(".");
+        oxygenCatalogFileName = oxygenCatalogFileName.substring(0, lastIndex) + "-oxygen" + oxygenCatalogFileName.substring(lastIndex);
+        File targetFile = new File(sourceFile.getParentFile(), oxygenCatalogFileName);
         
+        Source source = new StreamSource(getClass().getResourceAsStream("/top/marchand/xml/maven/catalog/xsl/oxygen-catalog-converter.xsl"));
+        XsltTransformer tr = proc.newXsltCompiler().compile(source).load();
+        tr.setSource(new StreamSource(sourceFile));
+        Serializer dest = proc.newSerializer(targetFile);
+        dest.setOutputProperty(Serializer.Property.INDENT, "true");
+        tr.setDestination(dest);
+        tr.transform();
+    }
     private void writeCatalog(CatalogModel catalog) throws FileNotFoundException, XMLStreamException, IOException, MojoExecutionException {
         XMLOutputFactory fact = XMLOutputFactory.newFactory();
         File catalogFile = new File(project.getBasedir(), catalogFileName);

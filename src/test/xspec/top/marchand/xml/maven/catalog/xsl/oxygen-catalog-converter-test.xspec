@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<x:description 
+  xmlns:x="http://www.jenitennison.com/xslt/xspec"
+  stylesheet="../../../../../../../../main/xsl/top/marchand/xml/maven/catalog/xsl/oxygen-catalog-converter.xsl"
+  xslt-version="3.0">
+
+  <x:scenario label="testing equality">
+    <x:context>
+      <root attr1="value1">
+        <sub1 attr2="value2">
+          test<sub2 attr3="value3">pouet</sub2>test2
+        </sub1>
+      </root>
+    </x:context>
+    <x:expect label="Same thing">
+      <root attr1="value1">
+        <sub1 attr2="value2">
+          test<sub2 attr3="value3">pouet</sub2>test2
+        </sub1>
+      </root>
+    </x:expect>
+  </x:scenario>
+  
+  <x:scenario label="Changing jar attribute">
+    <x:context>
+      <catalog xmlns="fake:namespace">
+        <entry value="jar:file:/here/or/there"/>
+      </catalog>
+    </x:context>
+    <x:expect label="zip">
+      <catalog xmlns="fake:namespace">
+        <entry value="zip:file:/here/or/there"/>
+      </catalog>
+    </x:expect>
+  </x:scenario>
+</x:description>
