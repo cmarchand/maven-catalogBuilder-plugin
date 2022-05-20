@@ -27,10 +27,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
 import javanet.staxutils.IndentingXMLStreamWriter;
+
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
+
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
@@ -46,9 +49,11 @@ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
 import org.apache.maven.shared.dependency.graph.DependencyNode;
 import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
 import com.google.common.base.Joiner;
+
 import java.util.HashMap;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
+
 import net.sf.saxon.Configuration;
 import net.sf.saxon.s9api.DocumentBuilder;
 import net.sf.saxon.s9api.Processor;
@@ -66,26 +71,26 @@ import net.sf.saxon.s9api.XsltTransformer;
  * Generates a catalog, based on dependency tree, where each dependency is re-written to the jar URL.
  */
 @Mojo(
-        name = "catalog", 
-        defaultPhase = LifecyclePhase.PROCESS_RESOURCES, 
+        name = "catalog",
+        defaultPhase = LifecyclePhase.PROCESS_RESOURCES,
         requiresDependencyResolution = ResolutionScope.COMPILE)
 public class Catalog extends AbstractMojo {
-    
+
     public static final transient String SCHEME = "dependency:/";
-    
+
     /**
      * Current project
      */
-    @Parameter( defaultValue = "${project}", readonly = true, required = true )
+    @Parameter(defaultValue = "${project}", readonly = true, required = true)
     public MavenProject project;
-    
+
     /**
-     * The catalog file. 
+     * The catalog file.
      * It is always a path relative to <tt>${project.basedir}</tt>.
      */
-    @Parameter( defaultValue = "catalog.xml")
+    @Parameter(defaultValue = "catalog.xml")
     public String catalogFileName;
-    
+
     /**
      * The URI patterns to generate.
      * Valid values are :
@@ -103,30 +108,31 @@ public class Catalog extends AbstractMojo {
     @Parameter()
     public List<String> uriPatterns;
     {
-        uriPatterns=new ArrayList<>();
+        uriPatterns = new ArrayList<>();
         uriPatterns.add("standard");
     }
-    
+
     /**
      * The entries to add in catalog. If not defined, <tt>&lt;rewriteURI/&gt;</tt>
      * and <tt>&lt;rewriteSystem/&gt;</tt> will be generated.
      */
     @Parameter()
     public List<String> generates;
+
     {
         generates = new ArrayList<>();
         generates.add("rewriteURI");
         generates.add("rewriteSystem");
     }
-    
+
     /**
      * If defined, all catalog entries will be rewritten to this protocol.
      * Usually, if defined, the value is <tt>cp:/</tt>, and generaterd artifact
-     * will be used with {@link https://github.com/cmarchand/cp-protocol}.
+     * will be used with https://github.com/cmarchand/cp-protocol.
      */
     @Parameter()
     private String rewriteToProtocol;
-    
+
     /**
      * If <tt>true</tt>, current artifact (the project which is actually built) will
      * be included in catalog.
@@ -134,41 +140,41 @@ public class Catalog extends AbstractMojo {
      */
     @Parameter()
     public boolean includeCurrentArtifact;
-    
+
     /**
      * The next catalog to add to catalog. If null, no <tt>&lt;nextCatalog/&gt;</tt>
      * will be added.
      */
     @Parameter()
     public List<String> nextCatalogs;
-    
+
     /**
-     * List of artifacts to exclude. 
+     * List of artifacts to exclude.
      * Each artifact must be specified as <tt>groupId:artifactId</tt>.
      * Both <tt>groupId</tt> and <tt>artifactId</tt> can be replaced by <tt>*</tt>.
      * <tt>excludes</tt> and {@link #includes} are exclusives, and <strong>must not</strong> be used together.
-     * 
+     * <p>
      * If <tt>excludes</tt> is specified, all dependencies are used, except the ones that
      * match <tt>excludes</tt>.
-     * 
+     * <p>
      * Project's artifact is processed neither by <tt>excludes</tt> nor <tt>includes</tt>
      */
     @Parameter()
     public List<String> excludes;
-    
+
     /**
-     * List of artifacts to include. 
+     * List of artifacts to include.
      * Each artifact must be specified as <tt>groupId:artifactId</tt>.
      * Both <tt>groupId</tt> and <tt>artifactId</tt> can be replaced by <tt>*</tt>.
      * <tt>includes</tt> and {@link #excludes} are exclusives, and <strong>must not</strong> be used together.
-     * 
+     * <p>
      * If <tt>includes</tt> is specified, all dependencies that match <tt>includes</tt> are used.
-     * 
+     * <p>
      * Project's artifact is processed neither by <tt>excludes</tt> nor <tt>includes</tt>
      */
     @Parameter()
     public List<String> includes;
-    
+
     /**
      * Allows to add <tt>&lt;delegatePublic /&gt;</tt> entries to generated catalog.
      * Each entry should be as :
@@ -179,7 +185,7 @@ public class Catalog extends AbstractMojo {
      */
     @Parameter()
     public List<DelegateEntry> delegatesPublic;
-    
+
     /**
      * Allows to add <tt>&lt;delegateSystem /&gt;</tt> entries to generated catalog.
      * Each entry should be as :
@@ -190,7 +196,7 @@ public class Catalog extends AbstractMojo {
      */
     @Parameter()
     public List<DelegateEntry> delegatesSystem;
-    
+
     /**
      * Allows to add <tt>&lt;delegateURI /&gt;</tt> entries to generated catalog.
      * Each entry should be as :
@@ -201,59 +207,77 @@ public class Catalog extends AbstractMojo {
      */
     @Parameter()
     public List<DelegateEntry> delegatesURI;
-    
+
     /**
      * If set to <tt>true</tt>, removes the DOCTYPE from catalog file.
      * Default is true, so this is a major change since 1.0.6
+     *
      * @since 1.0.7
      */
-    @Parameter( defaultValue = "true")
+    @Parameter(defaultValue = "true")
     public boolean removeDoctype;
-    
+
     /**
      * Allows to generate a special catalog for Oxygen, where
      * jar:file:/ URIs are transformed to zip:file:/ URIs.
      * Oxygen has a special mecanism to load these kind of resources.
      */
-    @Parameter( defaultValue = "false" )
+    @Parameter(defaultValue = "false")
     public boolean generateOxygenCatalog;
-    
-    @Component( hint = "default" )
+
+    @Component(hint = "default")
     private DependencyGraphBuilder dependencyGraphBuilder;
-    
+
+    @Parameter
+    private ChmLogger.LogReason[] logReasons;
+
     private DependencyNode rootNode;
-    
-    private HashMap<File,MyArtifact> dependencyDirs;
+
+    private ChmLogger chmLogger;
+
+    private HashMap<File, MyArtifact> dependencyDirs;
     private Processor proc;
     private DocumentBuilder builder;
     private XPathCompiler xpathCompiler;
-    
+
     @Override
     public void execute() throws MojoExecutionException {
         dependencyDirs = new HashMap<>();
         proc = new Processor(Configuration.newConfiguration());
         builder = proc.newDocumentBuilder();
         xpathCompiler = proc.newXPathCompiler();
-        
+        chmLogger = new ChmLogger(getLog());
+        for (ChmLogger.LogReason reason : logReasons) {
+            chmLogger.enableReason(reason, true);
+        }
+        chmLogger.log(
+                ChmLogger.LogReason.PARAMETERS,
+                ChmLogger.LogLevel.INFO,
+                "catalogFile: "+catalogFileName
+        );
         final List<String> classpaths;
         try {
             classpaths = new ArrayList<>(project.getCompileClasspathElements().size());
-            for(Object i:project.getCompileClasspathElements()) {
+            for (Object i : project.getCompileClasspathElements()) {
                 classpaths.add(i.toString());
             }
-            getLog().debug(LOG_PREFIX+"classpaths="+classpaths);
+            chmLogger.log(ChmLogger.LogReason.CLASSPATH, ChmLogger.LogLevel.INFO, LOG_PREFIX + "classpaths=" + classpaths);
             try {
-                rootNode = dependencyGraphBuilder.buildDependencyGraph( project, buildArtifactFilter() );
+                rootNode = dependencyGraphBuilder.buildDependencyGraph(project, buildArtifactFilter());
                 final CatalogModel catalog = new CatalogModel();
                 DependencyNodeVisitor visitor = new DependencyNodeVisitor() {
                     @Override
                     public boolean visit(DependencyNode dn) {
-                        getLog().debug(LOG_PREFIX+"Visiting "+dn.toNodeString());
-                        if(shouldProcessDependency(dn)) {
+                        chmLogger.log(
+                                ChmLogger.LogReason.VISITING,
+                                ChmLogger.LogLevel.INFO,
+                                LOG_PREFIX + "Visiting " + dn.toNodeString());
+                        if (shouldProcessDependency(dn)) {
                             processDependency(dn, classpaths, catalog);
                         }
                         return true;
                     }
+
                     @Override
                     public boolean endVisit(DependencyNode dn) {
                         return true;
@@ -261,171 +285,235 @@ public class Catalog extends AbstractMojo {
                 };
                 rootNode.accept(visitor);
                 writeCatalog(catalog);
-                getLog().debug(LOG_PREFIX+catalog.toString());
-                if(generateOxygenCatalog) {
+                getLog().debug(LOG_PREFIX + catalog.toString());
+                if (generateOxygenCatalog) {
                     writeOxygenCatalog();
                 }
             } catch (XMLStreamException | IOException | DependencyGraphBuilderException | SaxonApiException ex) {
-                getLog().error(LOG_PREFIX+ex.getMessage(),ex);
+                getLog().error(LOG_PREFIX + ex.getMessage(), ex);
                 throw new MojoExecutionException(ex.getMessage(), ex);
             }
-        } catch(DependencyResolutionRequiredException ex) {
-            getLog().error(LOG_PREFIX+ex.getMessage(),ex);
+        } catch (DependencyResolutionRequiredException ex) {
+            getLog().error(LOG_PREFIX + ex.getMessage(), ex);
         }
     }
-    
+
     protected boolean shouldProcessDependency(DependencyNode dn) {
         Artifact artifact = dn.getArtifact();
-        if(artifact.equals(project.getArtifact())) return includeCurrentArtifact;
+        if (artifact.equals(project.getArtifact())) {
+            chmLogger.log(
+                    ChmLogger.LogReason.EXCLUSION,
+                    ChmLogger.LogLevel.INFO,
+                    "Current artifact is " + (includeCurrentArtifact ? "" : "not ") + "excluded");
+            return includeCurrentArtifact;
+        }
         String groupId = artifact.getGroupId();
         String artifactId = artifact.getArtifactId();
-        
-        String[] patterns = { groupId+":"+artifactId, "*:"+artifactId, groupId+":*" };
-        if((includes==null || includes.isEmpty()) && (excludes==null || excludes.isEmpty())) return true;
-        if(includes!=null && !includes.isEmpty()) {
-            for(String pattern: patterns) {
-                if(includes.contains(pattern)) return true;
+
+        String[] patterns = {groupId + ":" + artifactId, "*:" + artifactId, groupId + ":*"};
+        if ((includes == null || includes.isEmpty()) && (excludes == null || excludes.isEmpty())) {
+            return true;
+        }
+        if (includes != null && !includes.isEmpty()) {
+            for (String pattern : patterns) {
+                if (includes.contains(pattern)) {
+                    return true;
+                }
             }
+            chmLogger.log(
+                    ChmLogger.LogReason.EXCLUSION,
+                    ChmLogger.LogLevel.INFO,
+                    "Excluding " + artifact.toString() + " because includes is not empty and no pattern matches it"
+            );
             return false;
         } else {
-            for(String pattern: patterns) {
-                if(excludes.contains(pattern)) return false;
+            for (String pattern : patterns) {
+                if (excludes.contains(pattern)) {
+                    chmLogger.log(
+                            ChmLogger.LogReason.EXCLUSION,
+                            ChmLogger.LogLevel.INFO,
+                            "excluding " + artifact.toString() + " because it is excluded by " + pattern
+                    );
+                    return false;
+                }
             }
             return true;
         }
     }
-    
+
     private void processDependency(DependencyNode dn, List<String> classpaths, CatalogModel catalog) {
         String groupId = dn.getArtifact().getGroupId();
         String artifactId = dn.getArtifact().getArtifactId();
         String version = dn.getArtifact().getVersion();
-        if(rewriteToProtocol!=null && rewriteToProtocol.length()>1) {
-            for(String pattern: uriPatterns) {
+        chmLogger.log(
+                ChmLogger.LogReason.DEPENDENCY,
+                ChmLogger.LogLevel.INFO,
+                String.format("Processing dependency [%s:%s:%s]", groupId, artifactId, version)
+        );
+        if (rewriteToProtocol != null && rewriteToProtocol.length() > 1) {
+            for (String pattern : uriPatterns) {
                 RewriteSystemModel rsm = new RewriteSystemModel(
-                        buildPattern(pattern, groupId,artifactId,version), 
+                        buildPattern(pattern, groupId, artifactId, version),
                         rewriteToProtocol,
                         groupId, artifactId, version);
-//                if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
-                    catalog.getEntries().add(rsm);
-//                }
+                catalog.getEntries().add(rsm);
             }
         } else {
             try {
                 String jarFileName = null;
-                if(isInJarWithDependencies(dn)) {
-                    getLog().debug(LOG_PREFIX+artifactId+" is in a jar-with-dependencies");
+                if (isInJarWithDependencies(dn)) {
+                    getLog().debug(LOG_PREFIX + artifactId + " is in a jar-with-dependencies");
                     jarFileName = getJarFileForJarWithDependency(dn, classpaths);
                 } else {
-                    getLog().debug(LOG_PREFIX+artifactId+" is in a jar");
+                    getLog().debug(LOG_PREFIX + artifactId + " is in a jar");
                     String artifactPath = constructArtifactPath(dn.getArtifact());
-                    getLog().debug(LOG_PREFIX+"artifactPath= "+artifactPath);
-                    for(String s:classpaths) {
-                        if(s.contains(artifactPath)) {
-                            jarFileName = s;
-                        } else if(s.endsWith("target/classes") || s.matches(".*[/\\\\]target[/\\\\][^/\\\\]+\\.jar")) {
+                    getLog().debug(LOG_PREFIX + "artifactPath= " + artifactPath);
+                    for (String classpath : classpaths) {
+                        chmLogger.log(
+                                ChmLogger.LogReason.DEPENDENCY,
+                                ChmLogger.LogLevel.INFO,
+                                "\t comparing to classpath "+classpath
+                        );
+                        if (classpath.contains(artifactPath)) {
+                            chmLogger.log(
+                                    ChmLogger.LogReason.DEPENDENCY,
+                                    ChmLogger.LogLevel.INFO,
+                                    "\t\t"+classpath+" contains "+artifactPath
+                            );
+                            jarFileName = classpath;
+                        } else if (classpath.endsWith("target/classes") || classpath.matches(".*[/\\\\]target[/\\\\][^/\\\\]+\\.jar")) {
                             // issue #2
-                            getLog().debug("found classpath : "+s);
+                            getLog().debug("found classpath : " + classpath);
                             // dir should be the project basedir
-                            File dir = new File(s).getParentFile().getParentFile();
-                            if(isPathMatchesDependency(dir,groupId, artifactId, version)) {
-                                jarFileName = s;
-                            } else {
-                                getLog().debug(LOG_PREFIX+s+" does not match ("+dir.getAbsolutePath()+","+groupId+","+artifactId+","+version+")");
-                                getLog().debug(LOG_PREFIX+artifactId+":/ won't be bind to a classpath element");
+                            File dir = new File(classpath).getParentFile().getParentFile();
+                            if (isPathMatchesDependency(dir, groupId, artifactId, version)) {
+                                chmLogger.log(
+                                        ChmLogger.LogReason.DEPENDENCY,
+                                        ChmLogger.LogLevel.INFO,
+                                        "\t\t"+dir.getAbsolutePath()+" matches artifact"
+                                );
+                                jarFileName = classpath;
                             }
                         }
                     }
                 }
-                getLog().debug(LOG_PREFIX+artifactId+" -> "+jarFileName);
-                if(jarFileName!=null) {
-                    for(String pattern: uriPatterns) {
+                getLog().debug(LOG_PREFIX + artifactId + " -> " + jarFileName);
+                if (jarFileName != null) {
+                    for (String pattern : uriPatterns) {
                         RewriteSystemModel rsm = (jarFileName.endsWith(".jar")) ?
                                 new RewriteSystemModel(
-                                    buildPattern(pattern, groupId,artifactId,version), 
-                                    "jar:file:"+jarFileName+"!/",
-                                    groupId, artifactId, version):
+                                        buildPattern(pattern, groupId, artifactId, version),
+                                        "jar:file:" + jarFileName + "!/",
+                                        groupId, artifactId, version) :
                                 new RewriteSystemModel(
-                                    buildPattern(pattern, groupId,artifactId,version), 
-                                    new File(jarFileName).toURI().toString(),
-                                    groupId, artifactId, version);
-//                        if(!catalog.containsUriStartPrefix(rsm.getUriStartPrefix())) {
-                            catalog.getEntries().add(rsm);
-//                        }
+                                        buildPattern(pattern, groupId, artifactId, version),
+                                        new File(jarFileName).toURI().toString(),
+                                        groupId, artifactId, version);
+                        catalog.getEntries().add(rsm);
                     }
+                } else {
+                    chmLogger.log(
+                            ChmLogger.LogReason.EXCLUSION,
+                            ChmLogger.LogLevel.INFO,
+                            "\t\tNo classpath found for artifact"
+                    );
                 }
             } catch (OverConstrainedVersionException ex) {
-                getLog().error(LOG_PREFIX+ex.getMessage(), ex);
+                getLog().error(LOG_PREFIX + ex.getMessage(), ex);
             }
         }
     }
-    
+
     protected String buildPattern(String pattern, String groupId, String artifactId, String version) {
         StringBuilder sb = new StringBuilder(SCHEME);
-        if("full".equals(pattern) || "standard".equals(pattern)) {
+        if ("full".equals(pattern) || "standard".equals(pattern)) {
             sb.append(groupId).append("+");
         }
         sb.append(artifactId);
-        if("full".equals(pattern)) {
+        if ("full".equals(pattern)) {
             sb.append("$").append(version);
         }
         sb.append("/");
         return sb.toString();
     }
+
     boolean isPathMatchesDependency(final File dir, final String groupId, final String artifactId, final String version) {
         MyArtifact art = dependencyDirs.get(dir);
-        if(art==null) {
-            art=loadArtifactFromDir(dir);
-            if(art!=null) {
-                dependencyDirs.put(dir,art);
-                return groupId.equals(art.getGroupId()) && artifactId.equals(art.getArtifactId()) && version.equals(art.getVersion());
-            } else {
-                return false;
+        if (art == null) {
+            art = loadArtifactFromDir(dir);
+        }
+        if (art != null) {
+            chmLogger.log(
+                    ChmLogger.LogReason.DEPENDENCY,
+                    ChmLogger.LogLevel.INFO,
+                    "\t\t\tart is "+art
+            );
+            dependencyDirs.put(dir, art);
+            boolean ret = groupId.equals(art.getGroupId()) && artifactId.equals(art.getArtifactId()) && version.equals(art.getVersion());
+            if (ret == false) {
+                chmLogger.log(
+                        ChmLogger.LogReason.MATCHES,
+                        ChmLogger.LogLevel.INFO,
+                        art.toString() + " does not match " + groupId + ":" + artifactId + ":" + version
+                );
             }
+            return ret;
         } else {
-            return groupId.equals(art.getGroupId()) && artifactId.equals(art.getArtifactId()) && version.equals(art.getVersion());
+            chmLogger.log(
+                    ChmLogger.LogReason.MATCHES,
+                    ChmLogger.LogLevel.INFO,
+                    "no artifact found in dir " + dir.getAbsolutePath()
+            );
+            return false;
         }
     }
+
     MyArtifact loadArtifactFromDir(final File dir) {
         try {
-            XdmNode pom = builder.build(new File(dir,"pom.xml"));
+            XdmNode pom = builder.build(new File(dir, "pom.xml"));
             xpathCompiler.declareNamespace("mvn", "http://maven.apache.org/POM/4.0.0");
             XPathSelector selector = xpathCompiler.compile("/mvn:project/(mvn:groupId | mvn:artifactId | mvn:version)").load();
             selector.setContextItem(pom);
             XdmValue ret = selector.evaluate();
-            String groupId=null, artifactId=null, version=null;
-            for(XdmSequenceIterator it=ret.iterator();it.hasNext();) {
-                XdmNode node=(XdmNode)it.next();
-                switch(node.getNodeName().getLocalName()) {
-                    case "groupId": groupId = node.getStringValue(); break;
-                    case "artifactId": artifactId = node.getStringValue(); break;
-                    case "version": version = node.getStringValue();
+            String groupId = null, artifactId = null, version = null;
+            for (XdmSequenceIterator it = ret.iterator(); it.hasNext(); ) {
+                XdmNode node = (XdmNode) it.next();
+                switch (node.getNodeName().getLocalName()) {
+                    case "groupId":
+                        groupId = node.getStringValue();
+                        break;
+                    case "artifactId":
+                        artifactId = node.getStringValue();
+                        break;
+                    case "version":
+                        version = node.getStringValue();
                 }
             }
-            if(version==null || groupId==null) {
+            if (version == null || groupId == null) {
                 String relativePath = "../pom.xml";
                 // case where version is in parent pom. Look for it...
                 XPathSelector selector2 = xpathCompiler.compile("/mvn:project/mvn:parent/mvn:relativePath").load();
                 selector2.setContextItem(pom);
                 XdmValue vRelativePath = selector2.evaluate();
-                if(vRelativePath.size()>0) {
-                    getLog().debug("vRelativePath is a "+vRelativePath.getClass().getName());
-                    getLog().debug("vRelativePath is "+vRelativePath.size()+" long");
-                    getLog().debug("vRelativePath: "+vRelativePath.toString());
-                    relativePath = ((XdmNode)vRelativePath).getStringValue();
+                if (vRelativePath.size() > 0) {
+                    getLog().debug("vRelativePath is a " + vRelativePath.getClass().getName());
+                    getLog().debug("vRelativePath is " + vRelativePath.size() + " long");
+                    getLog().debug("vRelativePath: " + vRelativePath.toString());
+                    relativePath = ((XdmNode) vRelativePath).getStringValue();
                 }
                 File parentPomFile = new File(dir, relativePath);
-                if(parentPomFile.isDirectory()) {
+                if (parentPomFile.isDirectory()) {
                     parentPomFile = new File(parentPomFile, "pom.xml");
                 }
-                if(version==null) {
+                if (version == null) {
                     XPathSelector versionSelector = xpathCompiler.compile("/mvn:project/mvn:version").load();
                     versionSelector.setContextItem(builder.build(parentPomFile));
-                    version = ((XdmNode)versionSelector.evaluate()).getStringValue();
+                    version = ((XdmNode) versionSelector.evaluate()).getStringValue();
                 }
-                if(groupId==null) {
+                if (groupId == null) {
                     XPathSelector groupIdSelector = xpathCompiler.compile("/mvn:project/mvn:groupId").load();
                     groupIdSelector.setContextItem(builder.build(parentPomFile));
-                    groupId = ((XdmNode)groupIdSelector.evaluate()).getStringValue();
+                    groupId = ((XdmNode) groupIdSelector.evaluate()).getStringValue();
                 }
             }
             MyArtifact art = new MyArtifact(groupId, artifactId, version);
@@ -436,14 +524,14 @@ public class Catalog extends AbstractMojo {
             return null;
         }
     }
-    
+
     private void writeOxygenCatalog() throws SaxonApiException {
         File sourceFile = new File(project.getBasedir(), catalogFileName);
         String oxygenCatalogFileName = sourceFile.getName();
         int lastIndex = oxygenCatalogFileName.lastIndexOf(".");
         oxygenCatalogFileName = oxygenCatalogFileName.substring(0, lastIndex) + "-oxygen" + oxygenCatalogFileName.substring(lastIndex);
         File targetFile = new File(sourceFile.getParentFile(), oxygenCatalogFileName);
-        
+
         Source source = new StreamSource(getClass().getResourceAsStream("/top/marchand/xml/maven/catalog/xsl/oxygen-catalog-converter.xsl"));
         XsltTransformer tr = proc.newXsltCompiler().compile(source).load();
         tr.setSource(new StreamSource(sourceFile));
@@ -452,45 +540,46 @@ public class Catalog extends AbstractMojo {
         tr.setDestination(dest);
         tr.transform();
     }
+
     private void writeCatalog(CatalogModel catalog) throws FileNotFoundException, XMLStreamException, IOException, MojoExecutionException {
         XMLOutputFactory fact = XMLOutputFactory.newFactory();
         File catalogFile = new File(project.getBasedir(), catalogFileName);
         File directory = catalogFile.getParentFile();
-        if(!directory.exists()) {
+        if (!directory.exists()) {
             directory.mkdirs();
         }
         try (FileOutputStream fos = new FileOutputStream(catalogFile)) {
-            XMLStreamWriter writer = fact.createXMLStreamWriter(fos,"UTF-8");
+            XMLStreamWriter writer = fact.createXMLStreamWriter(fos, "UTF-8");
             writer = new IndentingXMLStreamWriter(writer);
             writer.writeStartDocument("UTF-8", "1.0");
-            if(!removeDoctype) {
+            if (!removeDoctype) {
                 writer.writeDTD("<!DOCTYPE catalog PUBLIC \"-//OASIS//DTD Entity Resolution XML Catalog V1.0//EN\" \"http://www.oasis-open.org/committees/entity/release/1.0/catalog.dtd\">");
             }
             writer.setDefaultNamespace("urn:oasis:names:tc:entity:xmlns:xml:catalog");
             writer.writeStartElement(CATALOG_NS, "catalog");
             writer.writeAttribute("xmlns", CATALOG_NS);
-            for(RewriteSystemModel rsm:catalog.getEntries()) {
-                for(String generate: generates) {
+            for (RewriteSystemModel rsm : catalog.getEntries()) {
+                for (String generate : generates) {
                     writeCatalogEntry(writer, generate, rsm);
                 }
             }
-            if(delegatesPublic!=null) {
-                for(DelegateEntry de: delegatesPublic) {
+            if (delegatesPublic != null) {
+                for (DelegateEntry de : delegatesPublic) {
                     writeDelegateEntry(writer, "delegatePublic", de);
                 }
             }
-            if(delegatesSystem!=null) {
-                for(DelegateEntry de: delegatesSystem) {
+            if (delegatesSystem != null) {
+                for (DelegateEntry de : delegatesSystem) {
                     writeDelegateEntry(writer, "delegateSystem", de);
                 }
             }
-            if(delegatesURI!=null) {
-                for(DelegateEntry de: delegatesURI) {
+            if (delegatesURI != null) {
+                for (DelegateEntry de : delegatesURI) {
                     writeDelegateEntry(writer, "delegateURI", de);
                 }
             }
-            if(nextCatalogs!=null) {
-                for(String nextCatalog: nextCatalogs) {
+            if (nextCatalogs != null) {
+                for (String nextCatalog : nextCatalogs) {
                     writer.writeEmptyElement(CATALOG_NS, "nextCatalog");
                     writer.writeAttribute("catalog", nextCatalog);
                 }
@@ -500,32 +589,35 @@ public class Catalog extends AbstractMojo {
             fos.flush();
         }
     }
+
     protected void writeDelegateEntry(XMLStreamWriter writer, String delegate, DelegateEntry entry) throws XMLStreamException, MojoExecutionException {
-        switch(delegate) {
-            case "delegatePublic" :{
+        switch (delegate) {
+            case "delegatePublic": {
                 writer.writeEmptyElement(CATALOG_NS, "delegatePublic");
                 writer.writeAttribute("publicIdStartString", entry.getStartString());
                 writer.writeAttribute("catalog", entry.getCatalog());
                 break;
             }
-            case "delegateSystem" :{
+            case "delegateSystem": {
                 writer.writeEmptyElement(CATALOG_NS, "delegateSystem");
                 writer.writeAttribute("systemIdStartString", entry.getStartString());
                 writer.writeAttribute("catalog", entry.getCatalog());
                 break;
             }
-            case "delegateURI" :{
+            case "delegateURI": {
                 writer.writeEmptyElement(CATALOG_NS, "delegateURI");
                 writer.writeAttribute("uriStartString", entry.getStartString());
                 writer.writeAttribute("catalog", entry.getCatalog());
                 break;
             }
-            default: throw new MojoExecutionException("Illegal value for generate: "+delegate);
+            default:
+                throw new MojoExecutionException("Illegal value for generate: " + delegate);
         }
     }
+
     protected void writeCatalogEntry(XMLStreamWriter writer, final String entry, final RewriteSystemModel rsm) throws XMLStreamException, MojoExecutionException {
-        switch(entry) {
-            case "rewriteURI" : {
+        switch (entry) {
+            case "rewriteURI": {
                 writer.writeEmptyElement(CATALOG_NS, "rewriteURI");
                 writer.writeAttribute("uriStartString", rsm.getUriStartPrefix());
                 writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
@@ -537,7 +629,7 @@ public class Catalog extends AbstractMojo {
                 writer.writeAttribute("rewritePrefix", rsm.getRewritePrefix());
                 break;
             }
-            case "public" :{
+            case "public": {
                 writer.writeEmptyElement(CATALOG_NS, "public");
                 writer.writeAttribute("publicId", rsm.getUriStartPrefix());
                 writer.writeAttribute("uri", rsm.getRewritePrefix());
@@ -555,9 +647,11 @@ public class Catalog extends AbstractMojo {
                 writer.writeAttribute("uri", rsm.getRewritePrefix());
                 break;
             }
-            default: throw new MojoExecutionException("Illegal value for generate: "+entry);
+            default:
+                throw new MojoExecutionException("Illegal value for generate: " + entry);
         }
     }
+
     private ArtifactFilter buildArtifactFilter() {
         return new ArtifactFilter() {
             @Override
@@ -566,38 +660,42 @@ public class Catalog extends AbstractMojo {
             }
         };
     }
+
     private static final transient String LOG_PREFIX = "[catalog] ";
     private static final transient String CATALOG_NS = "urn:oasis:names:tc:entity:xmlns:xml:catalog";
+
     /**
      * Return true if the dependency or one of its ancestor has a classifier in {@link #ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS}.
+     *
      * @param dn The dependency to check
      * @return true or false...
      */
     private boolean isInJarWithDependencies(DependencyNode dn) {
-        getLog().debug(LOG_PREFIX+" looking for parentry of "+dn.getArtifact().toString());
+        getLog().debug(LOG_PREFIX + " looking for parentry of " + dn.getArtifact().toString());
         String classifier = dn.getArtifact().getClassifier();
-        getLog().debug(LOG_PREFIX+"classifier="+classifier);
-        if( classifier!=null && Arrays.binarySearch(ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS, classifier)>=0) {
-            getLog().debug(LOG_PREFIX+" return true");
+        getLog().debug(LOG_PREFIX + "classifier=" + classifier);
+        if (classifier != null && Arrays.binarySearch(ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS, classifier) >= 0) {
+            getLog().debug(LOG_PREFIX + " return true");
             return true;
         }
-        if(dn.getParent()==null) {
-            getLog().debug(LOG_PREFIX+"no parent, return false");
+        if (dn.getParent() == null) {
+            getLog().debug(LOG_PREFIX + "no parent, return false");
             return false;
         }
         return isInJarWithDependencies(dn.getParent());
     }
+
     private String getJarFileForJarWithDependency(final DependencyNode dn, List<String> classpthElements) throws OverConstrainedVersionException {
-        if(dn==null) return null;
+        if (dn == null) return null;
         String lastFound = null;
         DependencyNode currentDn = dn;
-        while(currentDn!=null) {
+        while (currentDn != null) {
             String classifier = currentDn.getArtifact().getClassifier();
-            if(classifier==null || Arrays.binarySearch(ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS, classifier)>=0) {
+            if (classifier == null || Arrays.binarySearch(ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS, classifier) >= 0) {
                 String artifactPath = constructArtifactPath(currentDn.getArtifact());
-                for(String s:classpthElements) {
-                    if(s.contains(artifactPath)) {
-                        lastFound=s;
+                for (String s : classpthElements) {
+                    if (s.contains(artifactPath)) {
+                        lastFound = s;
                         break;
                     }
                 }
@@ -606,53 +704,63 @@ public class Catalog extends AbstractMojo {
         }
         return lastFound;
     }
-    
-    private final static String[] ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS = new String[] {
-        "jar-with-dependencies",
-        "jar-with-dependencies-and-model"
+
+    private final static String[] ACCEPTABLE_JAR_WITH_DEPENDENCIES_CLASSIFIERS = new String[]{
+            "jar-with-dependencies",
+            "jar-with-dependencies-and-model"
     };
+
     private String constructArtifactPath(Artifact art) throws OverConstrainedVersionException {
         String groups[] = art.getGroupId().split("\\.");
-        getLog().debug(LOG_PREFIX+"groups="+Arrays.toString(groups));
+        getLog().debug(LOG_PREFIX + "groups=" + Arrays.toString(groups));
         String artifacts[] = art.getArtifactId().split("\\.");
-        getLog().debug(LOG_PREFIX+"artifacts="+Arrays.toString(artifacts));
+        getLog().debug(LOG_PREFIX + "artifacts=" + Arrays.toString(artifacts));
         String[] elements = new String[groups.length + artifacts.length + 1];
         System.arraycopy(groups, 0, elements, 0, groups.length);
         System.arraycopy(artifacts, 0, elements, groups.length, artifacts.length);
-        getLog().debug(LOG_PREFIX+"artifact.baseVersion="+art.getBaseVersion());
-        elements[elements.length-1] = art.getBaseVersion();
+        getLog().debug(LOG_PREFIX + "artifact.baseVersion=" + art.getBaseVersion());
+        elements[elements.length - 1] = art.getBaseVersion();
         return Joiner.on(File.separator).skipNulls().join(elements);
     }
-    
+
     /**
      * for UT only
-     * @param patternUrl 
+     *
+     * @param uriPatterns
      */
     void setUriPatterns(List<String> uriPatterns) {
         this.uriPatterns = uriPatterns;
     }
-    
+
     private class MyArtifact {
         private final String groupId, artifactId, version;
+
         public MyArtifact(final String groupId, final String artifactId, final String version) {
             super();
-            this.groupId=groupId;
-            this.artifactId=artifactId;
-            this.version=version;
+            this.groupId = groupId;
+            this.artifactId = artifactId;
+            this.version = version;
         }
-        public String getGroupId() { return groupId; }
-        public String getArtifactId() { return artifactId; }
-        public String getVersion() { return version; }
+
+        public String getGroupId() {
+            return groupId;
+        }
+
+        public String getArtifactId() {
+            return artifactId;
+        }
+
+        public String getVersion() {
+            return version;
+        }
+
         @Override
         public String toString() {
             return String.format("artifact[%s,%s,%s]", groupId, artifactId, version);
         }
     }
-    
-    public static final transient String[] ALLOWED_URI_PATTERNS = { "compact", "full", "standard" };
-    public static final transient String[] ALLOWED_REWRITES = {
-        "public", "rewriteSystem", "rewriteURI", "system", "uri"};
-    
-    // "delegatePublic", "delegateSystem", "delegateURI", 
 
+    public static final transient String[] ALLOWED_URI_PATTERNS = {"compact", "full", "standard"};
+    public static final transient String[] ALLOWED_REWRITES = {
+            "public", "rewriteSystem", "rewriteURI", "system", "uri"};
 }
