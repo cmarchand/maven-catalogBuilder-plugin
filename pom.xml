@@ -4,12 +4,14 @@
 
     <groupId>top.marchand.xml.maven</groupId>
     <artifactId>catalogBuilder-maven-plugin</artifactId>
-    <version>4.0.0</version>
+    <version>4.1.0-SNAPSHOT</version>
     <packaging>maven-plugin</packaging>
 
     <name>catalogBuilder-maven-plugin Maven Mojo</name>
     <url>http://maven.apache.org</url>
-    <description>This plugin generates an OASIS catalog, which redirects all &lt;artifactId&gt;: URLs to appropriate jar</description>
+    <description>This plugin generates an OASIS catalog, which redirects all &lt;artifactId&gt;: URLs to appropriate
+        jar
+    </description>
 
     <licenses>
         <license>
@@ -18,7 +20,7 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
-    
+
     <scm>
         <connection>scm:git:https://github.com/cmarchand/maven-catalogBuilder-plugin</connection>
         <developerConnection>scm:git:git@github.com:cmarchand/maven-catalogBuilder-plugin.git</developerConnection>
@@ -36,12 +38,12 @@
     </developers>
 
     <properties>
-        <mavenVersion>2.2.1</mavenVersion>
+        <mavenVersion>3.8.5</mavenVersion>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
-    
+
     <dependencies>
         <dependency>
             <groupId>org.apache.maven</groupId>
@@ -51,7 +53,7 @@
         <dependency>
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-artifact</artifactId>
-            <version>2.2.1</version>
+            <version>3.8.5</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
@@ -71,11 +73,6 @@
         </dependency>
         <dependency>
             <groupId>org.apache.maven</groupId>
-            <artifactId>maven-project</artifactId>
-            <version>${mavenVersion}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.maven</groupId>
             <artifactId>maven-model</artifactId>
             <version>${mavenVersion}</version>
         </dependency>
@@ -83,13 +80,6 @@
             <groupId>org.apache.maven</groupId>
             <artifactId>maven-core</artifactId>
             <version>${mavenVersion}</version>
-        </dependency>
-
-        <!-- shared -->
-        <dependency>
-            <groupId>org.apache.maven.shared</groupId>
-            <artifactId>maven-dependency-analyzer</artifactId>
-            <version>1.6</version>
         </dependency>
         <dependency>
             <groupId>org.apache.maven.shared</groupId>
@@ -112,7 +102,7 @@
             <version>9.8.0-14</version>
         </dependency>
     </dependencies>
- 
+
     <distributionManagement>
         <snapshotRepository>
             <id>ossrh</id>
@@ -123,13 +113,13 @@
             <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
     </distributionManagement>
- 
+
     <build>
-      <resources>
-        <resource>
-          <directory>src/main/xsl</directory>
-        </resource>
-      </resources>
+        <resources>
+            <resource>
+                <directory>src/main/xsl</directory>
+            </resource>
+        </resources>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -160,12 +150,11 @@
                         </archive>
                     </configuration>
                 </plugin>
-
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-release-plugin</artifactId>
                     <version>2.5.2</version>
-                </plugin>                
+                </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-project-info-reports-plugin</artifactId>
@@ -176,13 +165,20 @@
                     <artifactId>maven-resources-plugin</artifactId>
                     <version>2.7</version>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>3.4.0</version>
+                    <configuration>
+                        <source>8</source>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.3</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -205,7 +201,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.9.1</version>
                 <executions>
                     <execution>
                         <id>attach-javadocs</id>
@@ -226,7 +221,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.10.3</version>
                 <configuration>
                     <failOnError>false</failOnError>
                 </configuration>

@@ -15,57 +15,38 @@
  */
 package top.marchand.xml.maven.catalog;
 
-import top.marchand.xml.maven.catalog.model.CatalogModel;
-import top.marchand.xml.maven.catalog.model.RewriteSystemModel;
+import javanet.staxutils.IndentingXMLStreamWriter;
+import net.sf.saxon.Configuration;
+import net.sf.saxon.s9api.*;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
+import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
+import org.apache.maven.artifact.versioning.OverConstrainedVersionException;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugins.annotations.*;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
+import org.apache.maven.shared.dependency.graph.DependencyNode;
+import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
+import top.marchand.xml.maven.catalog.model.CatalogModel;
+import top.marchand.xml.maven.catalog.model.RewriteSystemModel;
 
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamWriter;
+import javax.xml.transform.Source;
+import javax.xml.transform.stream.StreamSource;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-
-import javanet.staxutils.IndentingXMLStreamWriter;
-
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamWriter;
-
-import org.apache.maven.artifact.Artifact;
-import org.apache.maven.artifact.DependencyResolutionRequiredException;
-import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
-import org.apache.maven.artifact.versioning.OverConstrainedVersionException;
-import org.apache.maven.plugins.annotations.Component;
-import org.apache.maven.plugins.annotations.LifecyclePhase;
-import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.plugins.annotations.ResolutionScope;
-import org.apache.maven.project.MavenProject;
-import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
-import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
-import org.apache.maven.shared.dependency.graph.DependencyNode;
-import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
-
 import java.util.HashMap;
+import java.util.List;
 import java.util.stream.Collectors;
-import javax.xml.transform.Source;
-import javax.xml.transform.stream.StreamSource;
-
-import net.sf.saxon.Configuration;
-import net.sf.saxon.s9api.DocumentBuilder;
-import net.sf.saxon.s9api.Processor;
-import net.sf.saxon.s9api.SaxonApiException;
-import net.sf.saxon.s9api.Serializer;
-import net.sf.saxon.s9api.XPathCompiler;
-import net.sf.saxon.s9api.XPathSelector;
-import net.sf.saxon.s9api.XdmNode;
-import net.sf.saxon.s9api.XdmSequenceIterator;
-import net.sf.saxon.s9api.XdmValue;
-import net.sf.saxon.s9api.XsltCompiler;
-import net.sf.saxon.s9api.XsltTransformer;
 
 /**
  * Generates a catalog, based on dependency tree, where each dependency is re-written to the jar URL.
@@ -86,7 +67,7 @@ public class Catalog extends AbstractMojo {
 
     /**
      * The catalog file.
-     * It is always a path relative to <tt>${project.basedir}</tt>.
+     * It is always a path relative to @{@code ${project.basedir}}.
      */
     @Parameter(defaultValue = "catalog.xml")
     public String catalogFileName;
@@ -94,31 +75,24 @@ public class Catalog extends AbstractMojo {
     /**
      * The URI patterns to generate.
      * Valid values are :
-     * <table>
-     *   <caption>Kind of patterns and URIs</caption>
-     *   <thead>
-     *     <tr><th>pattern</th><th>URI form</th></tr>
-     *   </thead>
-     *   <tbody>
-     *     <tr><td><tt>standard</tt></td><td><tt>dependency:/goupId+artifactId/path/to/file.xml</tt></td></tr>
-     *     <tr><td><tt>full</tt></td><td><tt>dependency:/groupId+artifactId$version/path/to/file.xml</tt></td></tr>
-     *   </tbody>
-     * </table>
+     *
+     * {@code standard}: {@code dependency:/groupId+artifactId/path/to/file.xml}
+     * {@code full}: {@code dependency:/groupId+artifactId$version/path/to/file.xml}
      */
     @Parameter()
     public List<String> uriPatterns;
+
     {
         uriPatterns = new ArrayList<>();
         uriPatterns.add("standard");
     }
 
     /**
-     * The entries to add in catalog. If not defined, <tt>&lt;rewriteURI/&gt;</tt>
-     * and <tt>&lt;rewriteSystem/&gt;</tt> will be generated.
+     * The entries to add in catalog. If not defined, {@code <rewriteURI/>}
+     * and {@code <rewriteSystem/>} will be generated.
      */
     @Parameter()
     public List<String> generates;
-
     {
         generates = new ArrayList<>();
         generates.add("rewriteURI");
@@ -127,14 +101,14 @@ public class Catalog extends AbstractMojo {
 
     /**
      * If defined, all catalog entries will be rewritten to this protocol.
-     * Usually, if defined, the value is <tt>cp:/</tt>, and generaterd artifact
+     * Usually, if defined, the value is {@code cp:/}, and generaterd artifact
      * will be used with https://github.com/cmarchand/cp-protocol.
      */
     @Parameter()
     private String rewriteToProtocol;
 
     /**
-     * If <tt>true</tt>, current artifact (the project which is actually built) will
+     * If {@code true}, current artifact (the project which is actually built) will
      * be included in catalog.
      * This does not depend on {@link #includes} and {@link #excludes}
      */
@@ -142,7 +116,7 @@ public class Catalog extends AbstractMojo {
     public boolean includeCurrentArtifact;
 
     /**
-     * The next catalog to add to catalog. If null, no <tt>&lt;nextCatalog/&gt;</tt>
+     * The next catalog to add to catalog. If null, no {@code <nextCatalog/>}
      * will be added.
      */
     @Parameter()
@@ -150,66 +124,71 @@ public class Catalog extends AbstractMojo {
 
     /**
      * List of artifacts to exclude.
-     * Each artifact must be specified as <tt>groupId:artifactId</tt>.
-     * Both <tt>groupId</tt> and <tt>artifactId</tt> can be replaced by <tt>*</tt>.
-     * <tt>excludes</tt> and {@link #includes} are exclusives, and <strong>must not</strong> be used together.
+     * Each artifact must be specified as {@code groupId:artifactId}.
+     * Both {@code groupId} and {@code artifactId} can be replaced by {@code *}.
+     * {@code excludes} and {@link #includes} are exclusives, and <strong>must not</strong> be used together.
      * <p>
-     * If <tt>excludes</tt> is specified, all dependencies are used, except the ones that
-     * match <tt>excludes</tt>.
+     * If {@code excludes} is specified, all dependencies are used, except the ones that
+     * match {@code excludes}.
      * <p>
-     * Project's artifact is processed neither by <tt>excludes</tt> nor <tt>includes</tt>
+     * Project's artifact is processed neither by {@code excludes} nor {@code includes}
      */
     @Parameter()
     public List<String> excludes;
 
     /**
      * List of artifacts to include.
-     * Each artifact must be specified as <tt>groupId:artifactId</tt>.
-     * Both <tt>groupId</tt> and <tt>artifactId</tt> can be replaced by <tt>*</tt>.
-     * <tt>includes</tt> and {@link #excludes} are exclusives, and <strong>must not</strong> be used together.
+     * Each artifact must be specified as {@code groupId:artifactId}.
+     * Both {@code groupId} and {@code artifactId} can be replaced by {@code *}.
+     * {@code includes} and {@link #excludes} are exclusives, and <strong>must not</strong> be used together.
      * <p>
-     * If <tt>includes</tt> is specified, all dependencies that match <tt>includes</tt> are used.
+     * If {@code includes} is specified, all dependencies that match {@code includes} are used.
      * <p>
-     * Project's artifact is processed neither by <tt>excludes</tt> nor <tt>includes</tt>
+     * Project's artifact is processed neither by {@code excludes} nor {@code includes}
      */
     @Parameter()
     public List<String> includes;
 
     /**
-     * Allows to add <tt>&lt;delegatePublic /&gt;</tt> entries to generated catalog.
+     * Allows to add {@code <delegatePublic />} entries to generated catalog.
      * Each entry should be as :
-     * <pre>&lt;delegateEntry&gt;
-     *   &lt;startString&gt;publicIdStartString&lt;/startString&gt;
-     *   &lt;catalog&gt;catalog&lt;/catalog&gt;
-     * &lt;/delegateEntry&gt;</pre>
+     * <pre>{@code
+     * <delegateEntry>
+     *   <startString>publicIdStartString</startString>
+     *   <catalog>catalog</catalog>
+     * </delegateEntry>
+     * }</pre>
      */
     @Parameter()
     public List<DelegateEntry> delegatesPublic;
 
     /**
-     * Allows to add <tt>&lt;delegateSystem /&gt;</tt> entries to generated catalog.
+     * Allows to add {@code <delegateSystem />} entries to generated catalog.
      * Each entry should be as :
-     * <pre>&lt;delegateEntry&gt;
-     *   &lt;startString&gt;systemIdStartString&lt;/startString&gt;
-     *   &lt;catalog&gt;catalog&lt;/catalog&gt;
-     * &lt;/delegateEntry&gt;</pre>
+     * <pre>{@code <delegateEntry>
+     *   <startString>systemIdStartString</startString>
+     *   <catalog>catalog</catalog>
+     * </delegateEntry>
+     * }</pre>
      */
     @Parameter()
     public List<DelegateEntry> delegatesSystem;
 
     /**
-     * Allows to add <tt>&lt;delegateURI /&gt;</tt> entries to generated catalog.
+     * Allows to add {@code <delegateURI />} entries to generated catalog.
      * Each entry should be as :
-     * <pre>&lt;delegateEntry&gt;
-     *   &lt;startString&gt;uriStartString&lt;/startString&gt;
-     *   &lt;catalog&gt;catalog&lt;/catalog&gt;
-     * &lt;/delegateEntry&gt;</pre>
+     * <pre>{@code
+     * <delegateEntry>
+     *   <startString>uriStartString</startString>
+     *   <catalog>catalog</catalog>
+     * </delegateEntry>
+     * }</pre>
      */
     @Parameter()
     public List<DelegateEntry> delegatesURI;
 
     /**
-     * If set to <tt>true</tt>, removes the DOCTYPE from catalog file.
+     * If set to {@code true}, removes the DOCTYPE from catalog file.
      * Default is true, so this is a major change since 1.0.6
      *
      * @since 1.0.7
@@ -219,7 +198,7 @@ public class Catalog extends AbstractMojo {
 
     /**
      * Allows to generate a special catalog for Oxygen, where
-     * jar:file:/ URIs are transformed to zip:file:/ URIs.
+     * {@code jar:file:/} URIs are transformed to {@code zip:file:/} URIs.
      * Oxygen has a special mecanism to load these kind of resources.
      */
     @Parameter(defaultValue = "false")
@@ -253,49 +232,48 @@ public class Catalog extends AbstractMojo {
         chmLogger.log(
                 ChmLogger.LogReason.PARAMETERS,
                 ChmLogger.LogLevel.INFO,
-                "catalogFile: "+catalogFileName
+                "catalogFile: " + catalogFileName
         );
         final List<String> classpaths;
+        classpaths = new ArrayList<>();
         try {
-            classpaths = new ArrayList<>(project.getCompileClasspathElements().size());
             for (Object i : project.getCompileClasspathElements()) {
                 classpaths.add(i.toString());
             }
-            chmLogger.log(ChmLogger.LogReason.CLASSPATH, ChmLogger.LogLevel.INFO, LOG_PREFIX + "classpaths=" + classpaths);
-            try {
-                rootNode = dependencyGraphBuilder.buildDependencyGraph(project, buildArtifactFilter());
-                final CatalogModel catalog = new CatalogModel();
-                DependencyNodeVisitor visitor = new DependencyNodeVisitor() {
-                    @Override
-                    public boolean visit(DependencyNode dn) {
-                        chmLogger.log(
-                                ChmLogger.LogReason.VISITING,
-                                ChmLogger.LogLevel.INFO,
-                                LOG_PREFIX + "Visiting " + dn.toNodeString());
-                        if (shouldProcessDependency(dn)) {
-                            processDependency(dn, classpaths, catalog);
-                        }
-                        return true;
+            rootNode = dependencyGraphBuilder.buildDependencyGraph(project, buildArtifactFilter());
+            final CatalogModel catalog = new CatalogModel();
+            DependencyNodeVisitor visitor = new DependencyNodeVisitor() {
+                @Override
+                public boolean visit(DependencyNode dn) {
+                    chmLogger.log(
+                            ChmLogger.LogReason.VISITING,
+                            ChmLogger.LogLevel.INFO,
+                            LOG_PREFIX + "Visiting " + dn.toNodeString());
+                    if (shouldProcessDependency(dn)) {
+                        processDependency(dn, classpaths, catalog);
                     }
-
-                    @Override
-                    public boolean endVisit(DependencyNode dn) {
-                        return true;
-                    }
-                };
-                rootNode.accept(visitor);
-                writeCatalog(catalog);
-                getLog().debug(LOG_PREFIX + catalog.toString());
-                if (generateOxygenCatalog) {
-                    writeOxygenCatalog();
+                    return true;
                 }
-            } catch (XMLStreamException | IOException | DependencyGraphBuilderException | SaxonApiException ex) {
-                getLog().error(LOG_PREFIX + ex.getMessage(), ex);
-                throw new MojoExecutionException(ex.getMessage(), ex);
+
+                @Override
+                public boolean endVisit(DependencyNode dn) {
+                    return true;
+                }
+            };
+            rootNode.accept(visitor);
+            writeCatalog(catalog);
+            getLog().debug(LOG_PREFIX + catalog.toString());
+            if (generateOxygenCatalog) {
+                writeOxygenCatalog();
             }
-        } catch (DependencyResolutionRequiredException ex) {
+        } catch (XMLStreamException | IOException | DependencyGraphBuilderException | DependencyResolutionRequiredException | SaxonApiException ex) {
             getLog().error(LOG_PREFIX + ex.getMessage(), ex);
+            throw new MojoExecutionException(ex.getMessage(), ex);
         }
+        chmLogger.log(
+                ChmLogger.LogReason.CLASSPATH,
+                ChmLogger.LogLevel.INFO,
+                LOG_PREFIX + "classpaths=" + classpaths);
     }
 
     protected boolean shouldProcessDependency(DependencyNode dn) {
@@ -372,13 +350,13 @@ public class Catalog extends AbstractMojo {
                         chmLogger.log(
                                 ChmLogger.LogReason.DEPENDENCY,
                                 ChmLogger.LogLevel.INFO,
-                                "\t comparing to classpath "+classpath
+                                "\t comparing to classpath " + classpath
                         );
                         if (classpath.contains(artifactPath)) {
                             chmLogger.log(
                                     ChmLogger.LogReason.DEPENDENCY,
                                     ChmLogger.LogLevel.INFO,
-                                    "\t\t"+classpath+" contains "+artifactPath
+                                    "\t\t" + classpath + " contains " + artifactPath
                             );
                             jarFileName = classpath;
                         } else if (classpath.endsWith("target/classes") || classpath.matches(".*[/\\\\]target[/\\\\][^/\\\\]+\\.jar")) {
@@ -390,7 +368,7 @@ public class Catalog extends AbstractMojo {
                                 chmLogger.log(
                                         ChmLogger.LogReason.DEPENDENCY,
                                         ChmLogger.LogLevel.INFO,
-                                        "\t\t"+dir.getAbsolutePath()+" matches artifact"
+                                        "\t\t" + dir.getAbsolutePath() + " matches artifact"
                                 );
                                 jarFileName = classpath;
                             }
@@ -446,7 +424,7 @@ public class Catalog extends AbstractMojo {
             chmLogger.log(
                     ChmLogger.LogReason.DEPENDENCY,
                     ChmLogger.LogLevel.INFO,
-                    "\t\t\tart is "+art
+                    "\t\t\tart is " + art
             );
             dependencyDirs.put(dir, art);
             boolean ret = groupId.equals(art.getGroupId()) && artifactId.equals(art.getArtifactId()) && version.equals(art.getVersion());
@@ -721,7 +699,7 @@ public class Catalog extends AbstractMojo {
         getLog().debug(LOG_PREFIX + "artifact.baseVersion=" + art.getBaseVersion());
         elements[elements.length - 1] = art.getBaseVersion();
         return Arrays.stream(elements)
-                .filter(element -> element!=null && !element.isEmpty())
+                .filter(element -> element != null && !element.isEmpty())
                 .collect(Collectors.joining(File.separator));
     }
 
