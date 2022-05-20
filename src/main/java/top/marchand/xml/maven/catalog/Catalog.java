@@ -48,9 +48,9 @@ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
 import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
 import org.apache.maven.shared.dependency.graph.DependencyNode;
 import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
-import com.google.common.base.Joiner;
 
 import java.util.HashMap;
+import java.util.stream.Collectors;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 
@@ -720,7 +720,9 @@ public class Catalog extends AbstractMojo {
         System.arraycopy(artifacts, 0, elements, groups.length, artifacts.length);
         getLog().debug(LOG_PREFIX + "artifact.baseVersion=" + art.getBaseVersion());
         elements[elements.length - 1] = art.getBaseVersion();
-        return Joiner.on(File.separator).skipNulls().join(elements);
+        return Arrays.stream(elements)
+                .filter(element -> element!=null && !element.isEmpty())
+                .collect(Collectors.joining(File.separator));
     }
 
     /**
